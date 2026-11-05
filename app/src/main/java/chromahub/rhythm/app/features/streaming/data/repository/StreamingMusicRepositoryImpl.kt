@@ -14,6 +14,7 @@ import chromahub.rhythm.app.core.domain.model.PlaylistItem
 import chromahub.rhythm.app.core.domain.model.SourceType
 import chromahub.rhythm.app.core.utils.NetworkUtils
 import chromahub.rhythm.app.features.streaming.data.provider.JellyfinApiClient
+import chromahub.rhythm.app.features.streaming.data.provider.JioSaavnApiClient
 import chromahub.rhythm.app.features.streaming.data.provider.ProviderConnectionResult
 import chromahub.rhythm.app.features.streaming.data.provider.ProviderAlbum
 import chromahub.rhythm.app.features.streaming.data.provider.ProviderArtist
@@ -1697,6 +1698,7 @@ class StreamingMusicRepositoryImpl(
                     val searchResults = when (decodedId.serviceId) {
                         StreamingServiceId.SUBSONIC -> subsonicClient.searchAlbums(albumTitle).getOrNull()
                         StreamingServiceId.JELLYFIN -> jellyfinClient.searchAlbums(albumTitle).getOrNull()
+                        StreamingServiceId.JIOSAAVN -> jiosaavnClient.searchAlbums(albumTitle).getOrNull()
                         else -> null
                     }
                     val matchedAlbum = searchResults?.firstOrNull {
@@ -1714,6 +1716,21 @@ class StreamingMusicRepositoryImpl(
                     val providerResult = when (decodedId.serviceId) {
                         StreamingServiceId.SUBSONIC -> subsonicClient.getAlbumById(providerAlbumId)
                         StreamingServiceId.JELLYFIN -> jellyfinClient.getAlbumById(providerAlbumId)
+                        StreamingServiceId.JIOSAAVN -> {
+                            val songs = jiosaavnClient.getAlbumSongs(providerAlbumId).getOrNull().orEmpty()
+                            if (songs.isNotEmpty()) {
+                                val first = songs[0]
+                                Result.success(ProviderAlbum(
+                                    providerId = providerAlbumId,
+                                    title = first.album,
+                                    artist = first.artist,
+                                    artworkUrl = first.artworkUrl,
+                                    songCount = songs.size
+                                ))
+                            } else {
+                                Result.failure(Exception("Album not found"))
+                            }
+                        }
                         else -> Result.failure(Exception("Unknown service"))
                     }
                     val mapped = providerResult.getOrNull()?.let {
