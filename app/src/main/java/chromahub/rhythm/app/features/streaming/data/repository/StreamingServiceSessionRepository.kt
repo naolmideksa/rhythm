@@ -57,11 +57,12 @@ class StreamingServiceSessionRepository(context: Context) {
 
     private fun loadSessions(): Map<String, StreamingServiceSession> {
         return StreamingServiceId.all.associateWith { serviceId ->
+            val defaultConnected = serviceId == StreamingServiceId.JIOSAAVN
             StreamingServiceSession(
                 serviceId = serviceId,
-                isConnected = prefs.getBoolean(keyConnected(serviceId), false),
+                isConnected = prefs.getBoolean(keyConnected(serviceId), defaultConnected),
                 serverUrl = prefs.getString(keyServerUrl(serviceId), "") ?: "",
-                username = prefs.getString(keyUsername(serviceId), "") ?: "",
+                username = prefs.getString(keyUsername(serviceId), if (defaultConnected) "Online" else "") ?: "",
                 lastConnectedAtEpochMillis = prefs.getLong(keyConnectedAt(serviceId), 0L)
             )
         }

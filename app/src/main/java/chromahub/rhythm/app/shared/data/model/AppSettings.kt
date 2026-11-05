@@ -1142,10 +1142,10 @@ class AppSettings private constructor(context: Context) {
     val showScrollToTop: StateFlow<Boolean> = _showScrollToTop.asStateFlow()
     
     // App Mode Settings (Local vs Streaming)
-    private val _appMode = MutableStateFlow(prefs.getString(KEY_APP_MODE, "LOCAL") ?: "LOCAL")
+    private val _appMode = MutableStateFlow(prefs.getString(KEY_APP_MODE, "STREAMING") ?: "STREAMING")
     val appMode: StateFlow<String> = _appMode.asStateFlow()
     
-    private val _streamingService = MutableStateFlow(prefs.getString(KEY_STREAMING_SERVICE, "SUBSONIC") ?: "SUBSONIC")
+    private val _streamingService = MutableStateFlow(prefs.getString(KEY_STREAMING_SERVICE, "JIOSAAVN") ?: "JIOSAAVN")
     val streamingService: StateFlow<String> = _streamingService.asStateFlow()
     
     // Default to LOSSLESS so the server streams the original file at full quality.
