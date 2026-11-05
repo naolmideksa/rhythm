@@ -1293,6 +1293,7 @@ private fun StreamingHomeWelcomeContent(
                             val providerIconRes = when (service.id) {
                                 StreamingServiceId.SUBSONIC -> R.drawable.ic_subsonic
                                 StreamingServiceId.JELLYFIN -> R.drawable.ic_jellyfin
+                                StreamingServiceId.JIOSAAVN -> R.drawable.ic_music_note
                                 else -> null
                             }
                             if (providerIconRes != null) {

@@ -69,7 +69,12 @@ class StreamingServiceSessionRepository(context: Context) {
     }
 
     private fun defaultSession(serviceId: String): StreamingServiceSession {
-        return StreamingServiceSession(serviceId = serviceId, isConnected = false)
+        val defaultConnected = serviceId == StreamingServiceId.JIOSAAVN
+        return StreamingServiceSession(
+            serviceId = serviceId,
+            isConnected = defaultConnected,
+            username = if (defaultConnected) "Online" else ""
+        )
     }
 
     private fun keyConnected(serviceId: String) = "${serviceId}_connected"

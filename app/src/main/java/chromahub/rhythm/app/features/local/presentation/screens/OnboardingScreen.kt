@@ -10118,9 +10118,9 @@ fun EnhancedStreamingSetupContent(
                         appSettings.setStreamingService(selectedProvider)
                         streamingViewModel.connectService(
                             serviceId = selectedProvider,
-                            serverUrl = serverUrl,
-                            username = username,
-                            password = password
+                            serverUrl = if (requiresServerUrl) serverUrl else "",
+                            username = if (selectedProvider == "JIOSAAVN") "Online" else username,
+                            password = if (selectedProvider == "JIOSAAVN") "" else password
                         )
                     },
                     onDisconnect = {
@@ -10223,9 +10223,9 @@ fun EnhancedStreamingSetupContent(
                     appSettings.setStreamingService(selectedProvider)
                     streamingViewModel.connectService(
                         serviceId = selectedProvider,
-                        serverUrl = serverUrl,
-                        username = username,
-                        password = password
+                        serverUrl = if (requiresServerUrl) serverUrl else "",
+                        username = if (selectedProvider == "JIOSAAVN") "Online" else username,
+                        password = if (selectedProvider == "JIOSAAVN") "" else password
                     )
                 },
                 onDisconnect = {
@@ -10330,72 +10330,88 @@ private fun StreamingSetupSelectionAndForm(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            if (requiresServerUrl) {
-                OutlinedTextField(
-                    value = serverUrl,
-                    onValueChange = onServerUrlChange,
-                    modifier = Modifier.fillMaxWidth(),
-                    label = { Text(stringResource(R.string.streaming_service_setup_server_url)) },
-                    placeholder = { Text(stringResource(R.string.onboardingscreen_httpsyourservercom)) },
-                    trailingIcon = {
-                        IconButton(onClick = onDiscoverClick, enabled = !isLoading && !isConnected) {
-                            Icon(
-                                imageVector = MaterialSymbolIcon("radar"),
-                                contentDescription = stringResource(R.string.streaming_service_setup_auto_detect)
-                            )
-                        }
-                    },
-                    supportingText = { Text(stringResource(R.string.onboardingscreen_remember_to_include_http)) },
-                    singleLine = true,
-                    enabled = !isLoading && !isConnected
+            val requiresCredentials = selectedProvider != "JIOSAAVN"
+
+            if (!requiresCredentials) {
+                Text(
+                    text = selectedProviderName,
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurface
                 )
-            }
-
-            OutlinedTextField(
-                value = username,
-                onValueChange = onUsernameChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.onboardingscreen_username)) },
-                placeholder = { Text(stringResource(R.string.onboardingscreen_enter_server_username)) },
-                singleLine = true,
-                enabled = !isLoading && !isConnected
-            )
-
-            OutlinedTextField(
-                value = password,
-                onValueChange = onPasswordChange,
-                modifier = Modifier.fillMaxWidth(),
-                label = { Text(stringResource(R.string.streaming_service_setup_password)) },
-                placeholder = { Text(stringResource(R.string.onboardingscreen_enter_server_password)) },
-                visualTransformation = PasswordVisualTransformation(),
-                singleLine = true,
-                enabled = !isLoading && !isConnected
-            )
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(id = R.string.streaming_service_setup_remember_password),
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.Medium,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Text(
-                        text = stringResource(id = R.string.streaming_service_setup_remember_password_desc),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                Text(
+                    text = stringResource(R.string.streaming_service_jiosaavn_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            } else {
+                if (requiresServerUrl) {
+                    OutlinedTextField(
+                        value = serverUrl,
+                        onValueChange = onServerUrlChange,
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.streaming_service_setup_server_url)) },
+                        placeholder = { Text(stringResource(R.string.onboardingscreen_httpsyourservercom)) },
+                        trailingIcon = {
+                            IconButton(onClick = onDiscoverClick, enabled = !isLoading && !isConnected) {
+                                Icon(
+                                    imageVector = MaterialSymbolIcon("radar"),
+                                    contentDescription = stringResource(R.string.streaming_service_setup_auto_detect)
+                                )
+                            }
+                        },
+                        supportingText = { Text(stringResource(R.string.onboardingscreen_remember_to_include_http)) },
+                        singleLine = true,
+                        enabled = !isLoading && !isConnected
                     )
                 }
 
-                TunerAnimatedSwitch(
-                    checked = rememberStreamingPasswords,
-                    onCheckedChange = onRememberPasswordChange,
+                OutlinedTextField(
+                    value = username,
+                    onValueChange = onUsernameChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.onboardingscreen_username)) },
+                    placeholder = { Text(stringResource(R.string.onboardingscreen_enter_server_username)) },
+                    singleLine = true,
                     enabled = !isLoading && !isConnected
                 )
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = onPasswordChange,
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.streaming_service_setup_password)) },
+                    placeholder = { Text(stringResource(R.string.onboardingscreen_enter_server_password)) },
+                    visualTransformation = PasswordVisualTransformation(),
+                    singleLine = true,
+                    enabled = !isLoading && !isConnected
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(id = R.string.streaming_service_setup_remember_password),
+                            style = MaterialTheme.typography.bodyMedium,
+                            fontWeight = FontWeight.Medium,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = stringResource(id = R.string.streaming_service_setup_remember_password_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+
+                    TunerAnimatedSwitch(
+                        checked = rememberStreamingPasswords,
+                        onCheckedChange = onRememberPasswordChange,
+                        enabled = !isLoading && !isConnected
+                    )
+                }
             }
 
             if (isConnected) {

@@ -85,13 +85,14 @@ fun StreamingServiceSetupScreen(
     val optionDescription = option?.let { stringResource(id = it.descriptionRes) }
     val session = sessions[serviceId] ?: viewModel.getServiceSession(serviceId)
     val requiresServerUrl = remember(serviceId) { StreamingServiceRules.requiresServerUrl(serviceId) }
+    val requiresCredentials = remember(serviceId) { StreamingServiceRules.requiresCredentials(serviceId) }
 
     var serverUrl by rememberSaveable(serviceId) { mutableStateOf(session.serverUrl) }
     var username by rememberSaveable(serviceId) { mutableStateOf(session.username) }
     var password by rememberSaveable(serviceId) { mutableStateOf("") }
     var showDiscoverySheet by remember { mutableStateOf(false) }
 
-    val canSubmit = username.isNotBlank() && password.isNotBlank() && (!requiresServerUrl || serverUrl.isNotBlank())
+    val canSubmit = !requiresCredentials || (username.isNotBlank() && password.isNotBlank() && (!requiresServerUrl || serverUrl.isNotBlank()))
     val primaryActionText = when {
         isBusy && session.isConnected -> R.string.streaming_service_setup_disconnecting
         isBusy -> R.string.streaming_service_setup_connecting
@@ -136,6 +137,7 @@ fun StreamingServiceSetupScreen(
                     val providerIconRes = when (serviceId) {
                         StreamingServiceId.SUBSONIC -> R.drawable.ic_subsonic
                         StreamingServiceId.JELLYFIN -> R.drawable.ic_jellyfin
+                        StreamingServiceId.JIOSAAVN -> R.drawable.ic_music_note
                         else -> null
                     }
                     if (providerIconRes != null) {
@@ -214,74 +216,88 @@ fun StreamingServiceSetupScreen(
                                 .padding(20.dp),
                             verticalArrangement = Arrangement.spacedBy(14.dp)
                         ) {
-                            if (requiresServerUrl) {
-                                OutlinedTextField(
-                                    value = serverUrl,
-                                    onValueChange = { serverUrl = it },
-                                    modifier = Modifier.fillMaxWidth(),
-                                    label = { Text(text = stringResource(id = R.string.streaming_service_setup_server_url)) },
-                                    placeholder = { Text(text = stringResource(id = R.string.streaming_service_setup_server_url_hint)) },
-                                    trailingIcon = {
-                                        IconButton(onClick = { showDiscoverySheet = true }) {
-                                            Icon(
-                                                imageVector = MaterialSymbolIcon("radar"),
-                                                contentDescription = stringResource(R.string.streaming_service_setup_auto_detect)
-                                            )
-                                        }
-                                    },
-                                    supportingText = {
-                                        Text(text = stringResource(id = R.string.streaming_service_setup_server_url_supporting))
-                                    },
-                                    singleLine = true,
-                                    enabled = !isBusy
+                            if (!requiresCredentials) {
+                                Text(
+                                    text = optionName,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.onSurface
                                 )
-                            }
-
-                            OutlinedTextField(
-                                value = username,
-                                onValueChange = { username = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text(text = stringResource(id = R.string.streaming_service_setup_username)) },
-                                placeholder = { Text(text = stringResource(id = R.string.streaming_service_setup_username_hint)) },
-                                singleLine = true,
-                                enabled = !isBusy
-                            )
-
-                            OutlinedTextField(
-                                value = password,
-                                onValueChange = { password = it },
-                                modifier = Modifier.fillMaxWidth(),
-                                label = { Text(text = stringResource(id = R.string.streaming_service_setup_password)) },
-                                placeholder = { Text(text = stringResource(id = R.string.streaming_service_setup_password_hint)) },
-                                visualTransformation = PasswordVisualTransformation(),
-                                singleLine = true,
-                                enabled = !isBusy
-                            )
-
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = stringResource(id = R.string.streaming_service_setup_remember_password),
-                                        style = MaterialTheme.typography.bodyMedium,
-                                        fontWeight = FontWeight.Medium,
-                                        color = MaterialTheme.colorScheme.onSurface
-                                    )
-                                    Text(
-                                        text = stringResource(id = R.string.streaming_service_setup_remember_password_desc),
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                Text(
+                                    text = optionDescription ?: stringResource(id = R.string.streaming_service_jiosaavn_desc),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            } else {
+                                if (requiresServerUrl) {
+                                    OutlinedTextField(
+                                        value = serverUrl,
+                                        onValueChange = { serverUrl = it },
+                                        modifier = Modifier.fillMaxWidth(),
+                                        label = { Text(text = stringResource(id = R.string.streaming_service_setup_server_url)) },
+                                        placeholder = { Text(text = stringResource(id = R.string.streaming_service_setup_server_url_hint)) },
+                                        trailingIcon = {
+                                            IconButton(onClick = { showDiscoverySheet = true }) {
+                                                Icon(
+                                                    imageVector = MaterialSymbolIcon("radar"),
+                                                    contentDescription = stringResource(R.string.streaming_service_setup_auto_detect)
+                                                )
+                                            }
+                                        },
+                                        supportingText = {
+                                            Text(text = stringResource(id = R.string.streaming_service_setup_server_url_supporting))
+                                        },
+                                        singleLine = true,
+                                        enabled = !isBusy
                                     )
                                 }
 
-                                TunerAnimatedSwitch(
-                                    checked = rememberStreamingPasswords,
-                                    onCheckedChange = { enabled -> appSettings.setRememberStreamingPasswords(enabled) },
+                                OutlinedTextField(
+                                    value = username,
+                                    onValueChange = { username = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text(text = stringResource(id = R.string.streaming_service_setup_username)) },
+                                    placeholder = { Text(text = stringResource(id = R.string.streaming_service_setup_username_hint)) },
+                                    singleLine = true,
                                     enabled = !isBusy
                                 )
+
+                                OutlinedTextField(
+                                    value = password,
+                                    onValueChange = { password = it },
+                                    modifier = Modifier.fillMaxWidth(),
+                                    label = { Text(text = stringResource(id = R.string.streaming_service_setup_password)) },
+                                    placeholder = { Text(text = stringResource(id = R.string.streaming_service_setup_password_hint)) },
+                                    visualTransformation = PasswordVisualTransformation(),
+                                    singleLine = true,
+                                    enabled = !isBusy
+                                )
+
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = stringResource(id = R.string.streaming_service_setup_remember_password),
+                                            style = MaterialTheme.typography.bodyMedium,
+                                            fontWeight = FontWeight.Medium,
+                                            color = MaterialTheme.colorScheme.onSurface
+                                        )
+                                        Text(
+                                            text = stringResource(id = R.string.streaming_service_setup_remember_password_desc),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+
+                                    TunerAnimatedSwitch(
+                                        checked = rememberStreamingPasswords,
+                                        onCheckedChange = { enabled -> appSettings.setRememberStreamingPasswords(enabled) },
+                                        enabled = !isBusy
+                                    )
+                                }
                             }
                         }
                     }
@@ -334,15 +350,22 @@ fun StreamingServiceSetupScreen(
                             onClick = {
                                 viewModel.connectService(
                                     serviceId = serviceId,
-                                    serverUrl = serverUrl,
-                                    username = username,
-                                    password = password
+                                    serverUrl = if (requiresServerUrl) serverUrl else "",
+                                    username = if (requiresCredentials) username else "Online",
+                                    password = if (requiresCredentials) password else ""
                                 )
                             },
                             modifier = Modifier.fillMaxWidth(),
                             enabled = !isBusy && canSubmit
                         ) {
-                            Text(text = stringResource(id = primaryActionText))
+                            Text(
+                                text = if (!requiresCredentials) {
+                                    if (session.isConnected) stringResource(id = R.string.streaming_service_setup_reconnect)
+                                    else stringResource(id = R.string.streaming_connect)
+                                } else {
+                                    stringResource(id = primaryActionText)
+                                }
+                            )
                         }
 
                         if (session.isConnected) {
@@ -355,7 +378,7 @@ fun StreamingServiceSetupScreen(
                             }
                         }
 
-                        if (!canSubmit && !isBusy) {
+                        if (requiresCredentials && !canSubmit && !isBusy) {
                             Text(
                                 text = stringResource(id = R.string.streaming_service_setup_action_hint),
                                 style = MaterialTheme.typography.bodySmall,

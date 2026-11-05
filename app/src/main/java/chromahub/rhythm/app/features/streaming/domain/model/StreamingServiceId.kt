@@ -20,4 +20,8 @@ object StreamingServiceRules {
     fun requiresServerUrl(serviceId: String): Boolean {
         return serviceId == StreamingServiceId.SUBSONIC || serviceId == StreamingServiceId.JELLYFIN
     }
+
+    fun requiresCredentials(serviceId: String): Boolean {
+        return serviceId != StreamingServiceId.JIOSAAVN
+    }
 }

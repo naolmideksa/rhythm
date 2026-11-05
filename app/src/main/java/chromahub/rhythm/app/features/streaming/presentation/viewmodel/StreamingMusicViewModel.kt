@@ -63,6 +63,38 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     companion object {
         private const val AUTH_PING_RETRIES = 3
         private const val AUTH_PING_RETRY_DELAY_MS = 800L
+
+        fun normalizeServiceId(serviceId: String): String {
+            val normalized = serviceId.uppercase()
+            return if (StreamingServiceId.all.contains(normalized)) {
+                normalized
+            } else {
+                StreamingServiceId.JIOSAAVN
+            }
+        }
+
+        fun sourceTypeFromServiceId(serviceId: String): SourceType {
+            return when (serviceId.uppercase()) {
+                StreamingServiceId.SUBSONIC -> SourceType.SUBSONIC
+                StreamingServiceId.JELLYFIN -> SourceType.JELLYFIN
+                StreamingServiceId.JIOSAAVN -> SourceType.JIOSAAVN
+                else -> SourceType.UNKNOWN
+            }
+        }
+
+        fun serviceIdFromSourceType(sourceType: SourceType): String {
+            return when (sourceType) {
+                SourceType.SUBSONIC -> StreamingServiceId.SUBSONIC
+                SourceType.JELLYFIN -> StreamingServiceId.JELLYFIN
+                SourceType.JIOSAAVN -> StreamingServiceId.JIOSAAVN
+                SourceType.SPOTIFY,
+                SourceType.APPLE_MUSIC,
+                SourceType.YOUTUBE_MUSIC,
+                SourceType.DEEZER,
+                SourceType.LOCAL,
+                SourceType.UNKNOWN -> StreamingServiceId.JIOSAAVN
+            }
+        }
     }
     private val serviceSessionRepository = StreamingServiceSessionRepository(application)
     val repository = StreamingMusicModule.provideStreamingMusicRepository(application)
@@ -208,12 +240,16 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     private val _isOnline = MutableStateFlow(NetworkUtils.isNetworkAvailable(application))
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
-    private val _isAuthenticated = MutableStateFlow(false)
+    private val _isAuthenticated = MutableStateFlow(
+        normalizeServiceId(appSettings.streamingService.value) == StreamingServiceId.JIOSAAVN
+    )
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
 
     val serviceSessions: StateFlow<Map<String, StreamingServiceSession>> = serviceSessionRepository.sessions
     
-    private val _currentService = MutableStateFlow(SourceType.SUBSONIC)
+    private val _currentService = MutableStateFlow(
+        sourceTypeFromServiceId(normalizeServiceId(appSettings.streamingService.value))
+    )
     val currentService: StateFlow<SourceType> = _currentService.asStateFlow()
     
     private val _streamingConfig = MutableStateFlow(StreamingConfig())
@@ -2030,8 +2066,9 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             val authJob = kotlinx.coroutines.withTimeoutOrNull(6000L) {
                 try {
                     when (normalizedServiceId) {
-                        "SUBSONIC" -> providerRepository?.authenticate() == true
-                        "JELLYFIN" -> providerRepository?.authenticate() == true
+                        StreamingServiceId.SUBSONIC, "SUBSONIC" -> providerRepository?.authenticate() == true
+                        StreamingServiceId.JELLYFIN, "JELLYFIN" -> providerRepository?.authenticate() == true
+                        StreamingServiceId.JIOSAAVN, "JIOSAAVN" -> true
                         else -> false
                     }
                 } catch (e: Exception) {
@@ -2087,47 +2124,17 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         username: String,
         password: String
     ) {
+        if (!StreamingServiceRules.requiresCredentials(serviceId)) {
+            return
+        }
         if (StreamingServiceRules.requiresServerUrl(serviceId) && serverUrl.isBlank()) {
             throw IllegalArgumentException("Server URL is required")
         }
-        val requiresUsername = true
-        if (requiresUsername && username.isBlank()) {
+        if (username.isBlank()) {
             throw IllegalArgumentException("Username is required")
         }
         if (password.isBlank()) {
             throw IllegalArgumentException("Password is required")
-        }
-    }
-
-    private fun sourceTypeFromServiceId(serviceId: String): SourceType {
-        return when (serviceId.uppercase()) {
-            StreamingServiceId.SUBSONIC -> SourceType.SUBSONIC
-            StreamingServiceId.JELLYFIN -> SourceType.JELLYFIN
-            StreamingServiceId.JIOSAAVN -> SourceType.JIOSAAVN
-            else -> SourceType.UNKNOWN
-        }
-    }
-
-    private fun serviceIdFromSourceType(sourceType: SourceType): String {
-        return when (sourceType) {
-            SourceType.SUBSONIC -> StreamingServiceId.SUBSONIC
-            SourceType.JELLYFIN -> StreamingServiceId.JELLYFIN
-            SourceType.JIOSAAVN -> StreamingServiceId.JIOSAAVN
-            SourceType.SPOTIFY,
-            SourceType.APPLE_MUSIC,
-            SourceType.YOUTUBE_MUSIC,
-            SourceType.DEEZER,
-            SourceType.LOCAL,
-            SourceType.UNKNOWN -> StreamingServiceId.JIOSAAVN
-        }
-    }
-
-    private fun normalizeServiceId(serviceId: String): String {
-        val normalized = serviceId.uppercase()
-        return if (StreamingServiceId.all.contains(normalized)) {
-            normalized
-        } else {
-            StreamingServiceId.JIOSAAVN
         }
     }
     

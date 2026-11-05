@@ -959,6 +959,7 @@ class StreamingMusicRepositoryImpl(
                     val providerTracksResult = when (serviceId) {
                         StreamingServiceId.SUBSONIC -> subsonicClient.getArtistTopTracks(artistName, limit)
                         StreamingServiceId.JELLYFIN -> jellyfinClient.getArtistTopTracks(artistName, limit)
+                        StreamingServiceId.JIOSAAVN -> jiosaavnClient.searchSongs(artistName, limit)
                         else -> Result.success(emptyList())
                     }
                     val providerTracks = providerTracksResult.getOrNull()
@@ -1370,6 +1371,7 @@ class StreamingMusicRepositoryImpl(
                     val providerResult = when (serviceId) {
                         StreamingServiceId.SUBSONIC -> subsonicClient.getAlbumList(type, limit)
                         StreamingServiceId.JELLYFIN -> jellyfinClient.getAlbumList(type, limit)
+                        StreamingServiceId.JIOSAAVN -> jiosaavnClient.getNewReleases(limit)
                         else -> Result.success(emptyList())
                     }
                     val albums = providerResult.getOrNull()?.map { mapProviderAlbum(serviceId, it) }
