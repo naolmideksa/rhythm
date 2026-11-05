@@ -2103,6 +2103,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         return when (serviceId.uppercase()) {
             StreamingServiceId.SUBSONIC -> SourceType.SUBSONIC
             StreamingServiceId.JELLYFIN -> SourceType.JELLYFIN
+            StreamingServiceId.JIOSAAVN -> SourceType.JIOSAAVN
             else -> SourceType.UNKNOWN
         }
     }
@@ -2111,12 +2112,13 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         return when (sourceType) {
             SourceType.SUBSONIC -> StreamingServiceId.SUBSONIC
             SourceType.JELLYFIN -> StreamingServiceId.JELLYFIN
+            SourceType.JIOSAAVN -> StreamingServiceId.JIOSAAVN
             SourceType.SPOTIFY,
             SourceType.APPLE_MUSIC,
             SourceType.YOUTUBE_MUSIC,
             SourceType.DEEZER,
             SourceType.LOCAL,
-            SourceType.UNKNOWN -> StreamingServiceId.SUBSONIC
+            SourceType.UNKNOWN -> StreamingServiceId.JIOSAAVN
         }
     }
 
@@ -2125,7 +2127,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         return if (StreamingServiceId.all.contains(normalized)) {
             normalized
         } else {
-            StreamingServiceId.SUBSONIC
+            StreamingServiceId.JIOSAAVN
         }
     }
     
@@ -2136,6 +2138,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         return when (sourceType) {
             SourceType.SUBSONIC -> "Subsonic"
             SourceType.JELLYFIN -> "Jellyfin"
+            SourceType.JIOSAAVN -> "JioSaavn"
             SourceType.SPOTIFY -> "Spotify"
             SourceType.APPLE_MUSIC -> "Apple Music"
             SourceType.YOUTUBE_MUSIC -> "YouTube Music"

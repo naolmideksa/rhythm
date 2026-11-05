@@ -9681,7 +9681,7 @@ fun EnhancedStreamingServiceChoiceContent(
     val scrollState = rememberScrollState()
 
     var selectedProvider by rememberSaveable {
-        mutableStateOf(streamingService.ifBlank { "SUBSONIC" })
+        mutableStateOf(streamingService.ifBlank { "JIOSAAVN" })
     }
 
     LaunchedEffect(streamingService) {
@@ -9949,7 +9949,7 @@ fun EnhancedStreamingSetupContent(
     val error by streamingViewModel.error.collectAsState()
     val rememberStreamingPasswords by appSettings.rememberStreamingPasswords.collectAsState()
     val currentStreamingService by appSettings.streamingService.collectAsState()
-    val selectedProvider = currentStreamingService.ifBlank { "SUBSONIC" }
+    val selectedProvider = currentStreamingService.ifBlank { "JIOSAAVN" }
     
     val currentSession = sessions[selectedProvider] ?: streamingViewModel.getServiceSession(selectedProvider)
     val requiresServerUrl = remember(selectedProvider) { selectedProvider == "SUBSONIC" || selectedProvider == "JELLYFIN" }
@@ -9960,7 +9960,7 @@ fun EnhancedStreamingSetupContent(
     var showDiscoverySheet by remember { mutableStateOf(false) }
 
     val scanner = remember(selectedProvider) { NearbyServerScanner(context, selectedProvider, scope) }
-    var isAutoScanning by rememberSaveable(selectedProvider) { mutableStateOf(serverUrl.isBlank()) }
+    var isAutoScanning by rememberSaveable(selectedProvider) { mutableStateOf(if (selectedProvider == "JIOSAAVN") false else serverUrl.isBlank()) }
 
     DisposableEffect(scanner) {
         onDispose {
@@ -9969,7 +9969,9 @@ fun EnhancedStreamingSetupContent(
     }
 
     LaunchedEffect(selectedProvider) {
-        if (serverUrl.isBlank()) {
+        if (selectedProvider == "JIOSAAVN") {
+            isAutoScanning = false
+        } else if (serverUrl.isBlank()) {
             isAutoScanning = true
             scanner.startScan()
             delay(3500)
@@ -9980,24 +9982,24 @@ fun EnhancedStreamingSetupContent(
         }
     }
 
-    val isConnected = currentSession.isConnected
-    val canSubmit = username.isNotBlank() && password.isNotBlank() && (!requiresServerUrl || serverUrl.isNotBlank())
+    val isConnected = if (selectedProvider == "JIOSAAVN") true else currentSession.isConnected
+    val canSubmit = if (selectedProvider == "JIOSAAVN") true else (username.isNotBlank() && password.isNotBlank() && (!requiresServerUrl || serverUrl.isNotBlank()))
     val scrollState = rememberScrollState()
 
-    val providerDisplayName = if (selectedProvider == "JELLYFIN") {
-        stringResource(R.string.streaming_service_jellyfin)
-    } else {
-        stringResource(R.string.onboardingscreen_subsonic_navidrome)
+    val providerDisplayName = when (selectedProvider) {
+        "JELLYFIN" -> stringResource(R.string.streaming_service_jellyfin)
+        "JIOSAAVN" -> stringResource(R.string.streaming_service_jiosaavn)
+        else -> stringResource(R.string.onboardingscreen_subsonic_navidrome)
     }
-    val providerDescription = if (selectedProvider == "JELLYFIN") {
-        stringResource(R.string.streaming_service_jellyfin_desc)
-    } else {
-        stringResource(R.string.streaming_service_subsonic_desc)
+    val providerDescription = when (selectedProvider) {
+        "JELLYFIN" -> stringResource(R.string.streaming_service_jellyfin_desc)
+        "JIOSAAVN" -> stringResource(R.string.streaming_service_jiosaavn_desc)
+        else -> stringResource(R.string.streaming_service_subsonic_desc)
     }
-    val providerIconRes = if (selectedProvider == "JELLYFIN") {
-        R.drawable.ic_jellyfin
-    } else {
-        R.drawable.ic_subsonic
+    val providerIconRes = when (selectedProvider) {
+        "JELLYFIN" -> R.drawable.ic_jellyfin
+        "JIOSAAVN" -> R.drawable.ic_music_note
+        else -> R.drawable.ic_subsonic
     }
 
     if (isTablet) {

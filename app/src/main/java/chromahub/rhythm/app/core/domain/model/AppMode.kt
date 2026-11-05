@@ -30,12 +30,12 @@ data class StreamingConfig(
     /**
      * The currently selected streaming service.
      */
-    val activeService: SourceType = SourceType.SUBSONIC,
+    val activeService: SourceType = SourceType.JIOSAAVN,
     
     /**
      * Whether the user is authenticated with the active service.
      */
-    val isAuthenticated: Boolean = false,
+    val isAuthenticated: Boolean = true,
     
     /**
      * Preferred streaming quality.

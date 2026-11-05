@@ -2,9 +2,10 @@ name: Android CI
 
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "main", "feature/*" ]
   pull_request:
     branches: [ "main" ]
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -69,13 +70,12 @@ jobs:
         echo "Commit: ${{ github.sha }}" >> build_info.txt
         echo "Branch: ${{ github.head_ref }}" >> build_info.txt
 
-    - name: Upload PR artifacts
-      if: github.event_name == 'pull_request'
-      uses: actions/upload-artifact@v7
+    - name: Upload APK artifacts
+      if: always()
+      uses: actions/upload-artifact@v4
       with:
-        name: rhythm-pr-${{ github.event.pull_request.number }}
+        name: rhythm-jiosaavn-apk
         path: |
-          app/build/outputs/apk/github/release/*.apk
           app/build/outputs/apk/github/debug/*.apk
-          build_info.txt
+          app/build/outputs/apk/github/release/*.apk
         retention-days: 14

@@ -2444,6 +2444,7 @@ class StreamingMusicRepositoryImpl(
         return when (serviceId) {
             StreamingServiceId.SUBSONIC -> SourceType.SUBSONIC
             StreamingServiceId.JELLYFIN -> SourceType.JELLYFIN
+            StreamingServiceId.JIOSAAVN -> SourceType.JIOSAAVN
             else -> SourceType.UNKNOWN
         }
     }
