@@ -39,4 +39,21 @@ class OctaveApiClientTest {
         assertTrue(losslessUrl!!.contains("/audio/lossless?track=100"))
         assertTrue(lowUrl!!.contains("/audio/128?track=101"))
     }
+
+    @Test
+    fun testSoundCloudAudioResolutionWhenNoToken() = runBlocking {
+        val streamUrl = client.buildStreamUrl(
+            providerId = "681009642",
+            bitrate = 320,
+            title = "IGOR'S THEME",
+            artist = "Tyler, The Creator",
+            durationSec = 200
+        )
+        assertNotNull(streamUrl)
+        assertTrue(
+            streamUrl!!.contains("soundcloud.cloud") ||
+            streamUrl.contains("sndcdn.com") ||
+            streamUrl.contains("dzcdn.net")
+        )
+    }
 }

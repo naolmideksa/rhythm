@@ -15,8 +15,11 @@ import okhttp3.Request
 import org.json.JSONArray
 import org.json.JSONObject
 import java.io.IOException
+import java.net.URLEncoder
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.TimeUnit
+import java.util.concurrent.atomic.AtomicReference
+import kotlin.math.abs
 
 /**
  * Client for Octave Streaming (https://api.octavestreaming.com),
@@ -55,6 +58,10 @@ class OctaveApiClient internal constructor(
     // In-memory cache of stream and preview URLs
     private val streamUrlCache = ConcurrentHashMap<String, String>()
     private val previewUrlCache = ConcurrentHashMap<String, String>()
+
+    private data class TrackMeta(val title: String, val artist: String, val durationSec: Long)
+    private val trackMetaCache = ConcurrentHashMap<String, TrackMeta>()
+    private val soundCloudClientId = AtomicReference("39AVoiZVrdvJEMFLH8T0c5WGshQaAPRJ")
 
     fun isConnected(): Boolean = true
 
@@ -114,35 +121,164 @@ class OctaveApiClient internal constructor(
 
     /**
      * Resolves audio stream URL for a given track ID.
-     * Uses 320 kbps streaming with token, falling back to 128 kbps preview stream if token is unavailable.
+     * If an explicit playback token is configured, streams 320 kbps from Octave.
+     * Otherwise, resolves the full ungated audio stream from SoundCloud using track metadata,
+     * falling back to the direct 30s preview URL if unresolvable.
      */
-    suspend fun buildStreamUrl(providerId: String, bitrate: Int? = 320): String? = withContext(Dispatchers.IO) {
+    suspend fun buildStreamUrl(
+        providerId: String,
+        bitrate: Int? = 320,
+        title: String? = null,
+        artist: String? = null,
+        durationSec: Long? = null
+    ): String? = withContext(Dispatchers.IO) {
         streamUrlCache[providerId]?.let { return@withContext it }
 
-        val token = ensurePlaybackToken()
-        val quality = when {
-            bitrate != null && bitrate >= 1000 -> "lossless"
-            bitrate != null && bitrate <= 128 -> "128"
-            else -> "320"
-        }
-
-        if (!token.isNullOrBlank()) {
-            val streamUrl = "$BASE_URL/audio/$quality?track=${providerId}&k=$token"
+        // If an explicit playback token was set, use Octave's direct audio endpoint
+        if (!cachedPlaybackToken.isNullOrBlank()) {
+            val quality = when {
+                bitrate != null && bitrate >= 1000 -> "lossless"
+                bitrate != null && bitrate <= 128 -> "128"
+                else -> "320"
+            }
+            val streamUrl = "$BASE_URL/audio/$quality?track=${providerId}&k=$cachedPlaybackToken"
             streamUrlCache[providerId] = streamUrl
             return@withContext streamUrl
         }
 
-        // Fallback: use direct preview audio stream
-        previewUrlCache[providerId]?.let { return@withContext it }
+        // Ungated resolution: stream full audio via SoundCloud using track metadata
+        val resolvedTitle = title?.ifBlank { null } ?: trackMetaCache[providerId]?.title
+        val resolvedArtist = artist?.ifBlank { null } ?: trackMetaCache[providerId]?.artist
+        val resolvedDuration = durationSec ?: trackMetaCache[providerId]?.durationSec
 
+        if (!resolvedTitle.isNullOrBlank()) {
+            val scUrl = resolveSoundCloudAudioStream(resolvedArtist.orEmpty(), resolvedTitle, resolvedDuration)
+            if (!scUrl.isNullOrBlank()) {
+                streamUrlCache[providerId] = scUrl
+                return@withContext scUrl
+            }
+        }
+
+        // Fallback: direct preview audio stream
+        previewUrlCache[providerId]?.let { return@withContext it }
         val preview = fetchTrackPreviewUrl(providerId)
         if (!preview.isNullOrBlank()) {
             previewUrlCache[providerId] = preview
             return@withContext preview
         }
 
-        // Final attempt without token parameter
-        "$BASE_URL/audio/320?track=${providerId}"
+        null
+    }
+
+    /**
+     * Resolves an ungated full audio stream from SoundCloud using track metadata.
+     */
+    private fun resolveSoundCloudAudioStream(artist: String, title: String, durationSec: Long?): String? {
+        val query = if (artist.isNotBlank()) "$artist $title" else title
+        val encodedQuery = try {
+            URLEncoder.encode(query, "UTF-8")
+        } catch (e: Exception) {
+            query.replace(" ", "%20")
+        }
+
+        var clientId = soundCloudClientId.get()
+        var searchUrl = "https://api-v2.soundcloud.com/search/tracks?q=$encodedQuery&client_id=$clientId&limit=10".toHttpUrlOrNull()
+            ?: return null
+
+        var responseJson = executeGet(searchUrl)
+        if (responseJson == null) {
+            refreshSoundCloudClientId()
+            clientId = soundCloudClientId.get()
+            searchUrl = "https://api-v2.soundcloud.com/search/tracks?q=$encodedQuery&client_id=$clientId&limit=10".toHttpUrlOrNull()
+                ?: return null
+            responseJson = executeGet(searchUrl) ?: return null
+        }
+
+        val collection = responseJson.optJSONArray("collection") ?: return null
+        if (collection.length() == 0) return null
+
+        val candidates = mutableListOf<JSONObject>()
+        for (i in 0 until collection.length()) {
+            val item = collection.optJSONObject(i) ?: continue
+            val durMs = item.optLong("duration", 0L)
+            if (durMs > 45_000L) {
+                candidates.add(item)
+            }
+        }
+
+        val pool = if (candidates.isNotEmpty()) candidates else {
+            val all = mutableListOf<JSONObject>()
+            for (i in 0 until collection.length()) {
+                collection.optJSONObject(i)?.let { all.add(it) }
+            }
+            all
+        }
+        if (pool.isEmpty()) return null
+
+        val targetDurationSec = durationSec ?: 0L
+        val bestItem = if (targetDurationSec > 0L) {
+            pool.minByOrNull { item ->
+                val itemSec = item.optLong("duration", 0L) / 1000L
+                abs(itemSec - targetDurationSec)
+            } ?: pool.first()
+        } else {
+            pool.first()
+        }
+
+        val media = bestItem.optJSONObject("media") ?: return null
+        val transcodings = media.optJSONArray("transcodings") ?: return null
+
+        var streamResolveUrl: String? = null
+        for (i in 0 until transcodings.length()) {
+            val t = transcodings.optJSONObject(i) ?: continue
+            val format = t.optJSONObject("format") ?: continue
+            val protocol = format.optString("protocol")
+            if (protocol.equals("progressive", ignoreCase = true)) {
+                streamResolveUrl = t.optString("url")
+                break
+            }
+        }
+        if (streamResolveUrl.isNullOrBlank()) {
+            for (i in 0 until transcodings.length()) {
+                val t = transcodings.optJSONObject(i) ?: continue
+                val format = t.optJSONObject("format") ?: continue
+                val protocol = format.optString("protocol")
+                if (protocol.equals("hls", ignoreCase = true)) {
+                    streamResolveUrl = t.optString("url")
+                    break
+                }
+            }
+        }
+
+        if (streamResolveUrl.isNullOrBlank()) return null
+
+        val resolveHttpUrl = "$streamResolveUrl?client_id=$clientId".toHttpUrlOrNull() ?: return null
+        val streamData = executeGet(resolveHttpUrl) ?: return null
+        return streamData.optString("url").takeIf { it.isNotBlank() }
+    }
+
+    private fun refreshSoundCloudClientId() {
+        try {
+            val request = Request.Builder()
+                .url("https://soundcloud.com")
+                .header("User-Agent", USER_AGENT)
+                .build()
+            val html = okHttpClient.newCall(request).execute().use { it.body?.string().orEmpty() }
+            val scriptRegex = Regex("""https://a-v2\.sndcdn\.com/assets/[^"]+\.js""")
+            val scripts = scriptRegex.findAll(html).map { it.value }.toList()
+            for (script in scripts.reversed().take(5)) {
+                val scriptReq = Request.Builder().url(script).header("User-Agent", USER_AGENT).build()
+                val js = okHttpClient.newCall(scriptReq).execute().use { it.body?.string().orEmpty() }
+                val match = Regex("""client_id["=: ]+([a-zA-Z0-9]{32})""").find(js)
+                if (match != null) {
+                    val newId = match.groupValues[1]
+                    soundCloudClientId.set(newId)
+                    break
+                }
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to dynamically refresh SoundCloud client ID", e)
+        }
     }
 
     suspend fun searchSongs(query: String, limit: Int = 30): Result<List<ProviderSong>> = withContext(Dispatchers.IO) {
@@ -336,6 +472,10 @@ class OctaveApiClient internal constructor(
             val previewUrl = item.optString("previewUrl")
             if (previewUrl.isNotBlank()) {
                 previewUrlCache[id] = previewUrl
+            }
+
+            if (id.isNotBlank() && title.isNotBlank()) {
+                trackMetaCache[id] = TrackMeta(title, artist, durationSec)
             }
 
             songs.add(

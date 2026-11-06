@@ -886,7 +886,16 @@ class StreamingMusicRepositoryImpl(
         val resolved = when (serviceId) {
             StreamingServiceId.SUBSONIC -> subsonicClient.buildStreamUrl(providerId, bitrate)
             StreamingServiceId.JELLYFIN -> jellyfinClient.buildStreamUrl(providerId, bitrate)
-            StreamingServiceId.OCTAVE -> octaveClient.buildStreamUrl(providerId, bitrate)
+            StreamingServiceId.OCTAVE -> {
+                val song = songCache[songId]
+                octaveClient.buildStreamUrl(
+                    providerId = providerId,
+                    bitrate = bitrate,
+                    title = song?.title,
+                    artist = song?.artist,
+                    durationSec = song?.duration?.let { it / 1000 }
+                )
+            }
             StreamingServiceId.JIOSAAVN -> jiosaavnClient.buildStreamUrl(providerId, bitrate)
             else -> null
         }
