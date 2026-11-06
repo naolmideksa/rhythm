@@ -1422,6 +1422,8 @@
     <string name="streaming_service_subsonic_desc">Connect Navidrome and compatible Subsonic servers</string>
     <string name="streaming_service_jellyfin">Jellyfin</string>
     <string name="streaming_service_jellyfin_desc">Stream from your personal Jellyfin library</string>
+    <string name="streaming_service_octave">Octave</string>
+    <string name="streaming_service_octave_desc">Stream Spotify &amp; global music in 320 kbps (No setup needed)</string>
     <string name="streaming_service_jiosaavn">JioSaavn</string>
     <string name="streaming_service_jiosaavn_desc">Stream music online in 320 kbps (No setup needed)</string>
 <string name="settings_backup_restore">Backup &amp; Restore</string>

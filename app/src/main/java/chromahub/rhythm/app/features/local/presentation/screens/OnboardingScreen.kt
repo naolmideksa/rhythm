@@ -9681,7 +9681,7 @@ fun EnhancedStreamingServiceChoiceContent(
     val scrollState = rememberScrollState()
 
     var selectedProvider by rememberSaveable {
-        mutableStateOf(streamingService.ifBlank { "JIOSAAVN" })
+        mutableStateOf(streamingService.ifBlank { "OCTAVE" })
     }
 
     LaunchedEffect(streamingService) {
@@ -9949,10 +9949,11 @@ fun EnhancedStreamingSetupContent(
     val error by streamingViewModel.error.collectAsState()
     val rememberStreamingPasswords by appSettings.rememberStreamingPasswords.collectAsState()
     val currentStreamingService by appSettings.streamingService.collectAsState()
-    val selectedProvider = currentStreamingService.ifBlank { "JIOSAAVN" }
+    val selectedProvider = currentStreamingService.ifBlank { "OCTAVE" }
     
     val currentSession = sessions[selectedProvider] ?: streamingViewModel.getServiceSession(selectedProvider)
     val requiresServerUrl = remember(selectedProvider) { selectedProvider == "SUBSONIC" || selectedProvider == "JELLYFIN" }
+    val isAutoConnect = selectedProvider == "OCTAVE" || selectedProvider == "JIOSAAVN"
 
     var serverUrl by rememberSaveable(selectedProvider) { mutableStateOf(currentSession.serverUrl) }
     var username by rememberSaveable(selectedProvider) { mutableStateOf(currentSession.username) }
@@ -9960,7 +9961,7 @@ fun EnhancedStreamingSetupContent(
     var showDiscoverySheet by remember { mutableStateOf(false) }
 
     val scanner = remember(selectedProvider) { NearbyServerScanner(context, selectedProvider, scope) }
-    var isAutoScanning by rememberSaveable(selectedProvider) { mutableStateOf(if (selectedProvider == "JIOSAAVN") false else serverUrl.isBlank()) }
+    var isAutoScanning by rememberSaveable(selectedProvider) { mutableStateOf(if (isAutoConnect) false else serverUrl.isBlank()) }
 
     DisposableEffect(scanner) {
         onDispose {
@@ -9969,7 +9970,7 @@ fun EnhancedStreamingSetupContent(
     }
 
     LaunchedEffect(selectedProvider) {
-        if (selectedProvider == "JIOSAAVN") {
+        if (isAutoConnect) {
             isAutoScanning = false
         } else if (serverUrl.isBlank()) {
             isAutoScanning = true
@@ -9982,23 +9983,25 @@ fun EnhancedStreamingSetupContent(
         }
     }
 
-    val isConnected = if (selectedProvider == "JIOSAAVN") true else currentSession.isConnected
-    val canSubmit = if (selectedProvider == "JIOSAAVN") true else (username.isNotBlank() && password.isNotBlank() && (!requiresServerUrl || serverUrl.isNotBlank()))
+    val isConnected = if (isAutoConnect) true else currentSession.isConnected
+    val canSubmit = if (isAutoConnect) true else (username.isNotBlank() && password.isNotBlank() && (!requiresServerUrl || serverUrl.isNotBlank()))
     val scrollState = rememberScrollState()
 
     val providerDisplayName = when (selectedProvider) {
         "JELLYFIN" -> stringResource(R.string.streaming_service_jellyfin)
+        "OCTAVE" -> stringResource(R.string.streaming_service_octave)
         "JIOSAAVN" -> stringResource(R.string.streaming_service_jiosaavn)
         else -> stringResource(R.string.onboardingscreen_subsonic_navidrome)
     }
     val providerDescription = when (selectedProvider) {
         "JELLYFIN" -> stringResource(R.string.streaming_service_jellyfin_desc)
+        "OCTAVE" -> stringResource(R.string.streaming_service_octave_desc)
         "JIOSAAVN" -> stringResource(R.string.streaming_service_jiosaavn_desc)
         else -> stringResource(R.string.streaming_service_subsonic_desc)
     }
     val providerIconRes = when (selectedProvider) {
         "JELLYFIN" -> R.drawable.ic_jellyfin
-        "JIOSAAVN" -> R.drawable.ic_music_note
+        "OCTAVE", "JIOSAAVN" -> R.drawable.ic_music_note
         else -> R.drawable.ic_subsonic
     }
 
@@ -10119,8 +10122,8 @@ fun EnhancedStreamingSetupContent(
                         streamingViewModel.connectService(
                             serviceId = selectedProvider,
                             serverUrl = if (requiresServerUrl) serverUrl else "",
-                            username = if (selectedProvider == "JIOSAAVN") "Online" else username,
-                            password = if (selectedProvider == "JIOSAAVN") "" else password
+                            username = if (isAutoConnect) "Online" else username,
+                            password = if (isAutoConnect) "" else password
                         )
                     },
                     onDisconnect = {
@@ -10224,8 +10227,8 @@ fun EnhancedStreamingSetupContent(
                     streamingViewModel.connectService(
                         serviceId = selectedProvider,
                         serverUrl = if (requiresServerUrl) serverUrl else "",
-                        username = if (selectedProvider == "JIOSAAVN") "Online" else username,
-                        password = if (selectedProvider == "JIOSAAVN") "" else password
+                        username = if (isAutoConnect) "Online" else username,
+                        password = if (isAutoConnect) "" else password
                     )
                 },
                 onDisconnect = {
@@ -10330,7 +10333,7 @@ private fun StreamingSetupSelectionAndForm(
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(14.dp)
         ) {
-            val requiresCredentials = selectedProvider != "JIOSAAVN"
+            val requiresCredentials = selectedProvider != "OCTAVE" && selectedProvider != "JIOSAAVN"
 
             if (!requiresCredentials) {
                 Text(
@@ -10340,7 +10343,7 @@ private fun StreamingSetupSelectionAndForm(
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 Text(
-                    text = stringResource(R.string.streaming_service_jiosaavn_desc),
+                    text = if (selectedProvider == "OCTAVE") stringResource(R.string.streaming_service_octave_desc) else stringResource(R.string.streaming_service_jiosaavn_desc),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

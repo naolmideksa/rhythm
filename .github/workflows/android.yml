@@ -50,7 +50,7 @@ jobs:
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: rhythm-jiosaavn-apk
+        name: rhythm-octave-apk
         path: |
           app/build/outputs/apk/github/debug/*.apk
           app/build/outputs/apk/github/release/*.apk

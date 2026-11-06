@@ -6,10 +6,12 @@
 package chromahub.rhythm.app.features.streaming.domain.model
 
 object StreamingServiceId {
+    const val OCTAVE = "OCTAVE"
+    const val JIOSAAVN = "JIOSAAVN"
     const val SUBSONIC = "SUBSONIC"
     const val JELLYFIN = "JELLYFIN"
-    const val JIOSAAVN = "JIOSAAVN"
     val all = listOf(
+        OCTAVE,
         JIOSAAVN,
         SUBSONIC,
         JELLYFIN
@@ -22,6 +24,6 @@ object StreamingServiceRules {
     }
 
     fun requiresCredentials(serviceId: String): Boolean {
-        return serviceId != StreamingServiceId.JIOSAAVN
+        return serviceId != StreamingServiceId.OCTAVE && serviceId != StreamingServiceId.JIOSAAVN
     }
 }

@@ -69,7 +69,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             return if (StreamingServiceId.all.contains(normalized)) {
                 normalized
             } else {
-                StreamingServiceId.JIOSAAVN
+                StreamingServiceId.OCTAVE
             }
         }
 
@@ -77,6 +77,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             return when (serviceId.uppercase()) {
                 StreamingServiceId.SUBSONIC -> SourceType.SUBSONIC
                 StreamingServiceId.JELLYFIN -> SourceType.JELLYFIN
+                StreamingServiceId.OCTAVE -> SourceType.OCTAVE
                 StreamingServiceId.JIOSAAVN -> SourceType.JIOSAAVN
                 else -> SourceType.UNKNOWN
             }
@@ -86,13 +87,14 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             return when (sourceType) {
                 SourceType.SUBSONIC -> StreamingServiceId.SUBSONIC
                 SourceType.JELLYFIN -> StreamingServiceId.JELLYFIN
+                SourceType.OCTAVE -> StreamingServiceId.OCTAVE
                 SourceType.JIOSAAVN -> StreamingServiceId.JIOSAAVN
                 SourceType.SPOTIFY,
                 SourceType.APPLE_MUSIC,
                 SourceType.YOUTUBE_MUSIC,
                 SourceType.DEEZER,
                 SourceType.LOCAL,
-                SourceType.UNKNOWN -> StreamingServiceId.JIOSAAVN
+                SourceType.UNKNOWN -> StreamingServiceId.OCTAVE
             }
         }
     }
@@ -241,7 +243,9 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     val isOnline: StateFlow<Boolean> = _isOnline.asStateFlow()
 
     private val _isAuthenticated = MutableStateFlow(
-        normalizeServiceId(appSettings.streamingService.value) == StreamingServiceId.JIOSAAVN
+        normalizeServiceId(appSettings.streamingService.value).let {
+            it == StreamingServiceId.OCTAVE || it == StreamingServiceId.JIOSAAVN
+        }
     )
     val isAuthenticated: StateFlow<Boolean> = _isAuthenticated.asStateFlow()
 
@@ -2068,6 +2072,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     when (normalizedServiceId) {
                         StreamingServiceId.SUBSONIC, "SUBSONIC" -> providerRepository?.authenticate() == true
                         StreamingServiceId.JELLYFIN, "JELLYFIN" -> providerRepository?.authenticate() == true
+                        StreamingServiceId.OCTAVE, "OCTAVE" -> true
                         StreamingServiceId.JIOSAAVN, "JIOSAAVN" -> true
                         else -> false
                     }
@@ -2145,6 +2150,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         return when (sourceType) {
             SourceType.SUBSONIC -> "Subsonic"
             SourceType.JELLYFIN -> "Jellyfin"
+            SourceType.OCTAVE -> "Octave"
             SourceType.JIOSAAVN -> "JioSaavn"
             SourceType.SPOTIFY -> "Spotify"
             SourceType.APPLE_MUSIC -> "Apple Music"

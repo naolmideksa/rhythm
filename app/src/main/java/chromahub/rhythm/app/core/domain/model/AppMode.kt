@@ -30,7 +30,7 @@ data class StreamingConfig(
     /**
      * The currently selected streaming service.
      */
-    val activeService: SourceType = SourceType.JIOSAAVN,
+    val activeService: SourceType = SourceType.OCTAVE,
     
     /**
      * Whether the user is authenticated with the active service.

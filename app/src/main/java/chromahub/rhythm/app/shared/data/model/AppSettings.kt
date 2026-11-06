@@ -1145,7 +1145,7 @@ class AppSettings private constructor(context: Context) {
     private val _appMode = MutableStateFlow(prefs.getString(KEY_APP_MODE, "STREAMING") ?: "STREAMING")
     val appMode: StateFlow<String> = _appMode.asStateFlow()
     
-    private val _streamingService = MutableStateFlow(prefs.getString(KEY_STREAMING_SERVICE, "JIOSAAVN") ?: "JIOSAAVN")
+    private val _streamingService = MutableStateFlow(prefs.getString(KEY_STREAMING_SERVICE, "OCTAVE") ?: "OCTAVE")
     val streamingService: StateFlow<String> = _streamingService.asStateFlow()
     
     // Default to LOSSLESS so the server streams the original file at full quality.

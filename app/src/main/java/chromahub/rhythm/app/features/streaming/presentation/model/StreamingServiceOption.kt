@@ -16,10 +16,16 @@ data class StreamingServiceOption(
 )
 
 object StreamingServiceOptions {
+    const val OCTAVE = StreamingServiceId.OCTAVE
     const val JIOSAAVN = StreamingServiceId.JIOSAAVN
     const val SUBSONIC = StreamingServiceId.SUBSONIC
     const val JELLYFIN = StreamingServiceId.JELLYFIN
     val defaults: List<StreamingServiceOption> = listOf(
+        StreamingServiceOption(
+            id = OCTAVE,
+            nameRes = R.string.streaming_service_octave,
+            descriptionRes = R.string.streaming_service_octave_desc
+        ),
         StreamingServiceOption(
             id = JIOSAAVN,
             nameRes = R.string.streaming_service_jiosaavn,

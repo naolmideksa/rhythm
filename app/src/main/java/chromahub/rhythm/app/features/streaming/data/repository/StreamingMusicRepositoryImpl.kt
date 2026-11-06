@@ -15,6 +15,7 @@ import chromahub.rhythm.app.core.domain.model.SourceType
 import chromahub.rhythm.app.core.utils.NetworkUtils
 import chromahub.rhythm.app.features.streaming.data.provider.JellyfinApiClient
 import chromahub.rhythm.app.features.streaming.data.provider.JioSaavnApiClient
+import chromahub.rhythm.app.features.streaming.data.provider.OctaveApiClient
 import chromahub.rhythm.app.features.streaming.data.provider.ProviderConnectionResult
 import chromahub.rhythm.app.features.streaming.data.provider.ProviderAlbum
 import chromahub.rhythm.app.features.streaming.data.provider.ProviderArtist
@@ -84,6 +85,7 @@ class StreamingMusicRepositoryImpl(
 
     private val subsonicClient = SubsonicApiClient(context)
     private val jellyfinClient = JellyfinApiClient(context)
+    private val octaveClient = OctaveApiClient(context)
     private val jiosaavnClient = JioSaavnApiClient(context)
 
     private val songsFlow = MutableStateFlow<List<PlayableItem>>(emptyList())
@@ -422,6 +424,11 @@ class StreamingMusicRepositoryImpl(
         val result = when (normalizedService) {
             StreamingServiceId.SUBSONIC -> subsonicClient.login(serverUrl, username, password, saveCredentials)
             StreamingServiceId.JELLYFIN -> jellyfinClient.login(serverUrl, username, password, saveCredentials)
+            StreamingServiceId.OCTAVE -> {
+                val key = if (password.isNotBlank()) password else if (username.isNotBlank() && username != "Online") username else ""
+                if (key.isNotBlank()) octaveClient.setAccountKey(key)
+                Result.success(ProviderConnectionResult("Octave", ""))
+            }
             StreamingServiceId.JIOSAAVN -> Result.success(ProviderConnectionResult("JioSaavn", ""))
             else -> Result.failure(IllegalArgumentException("Unsupported streaming service"))
         }
@@ -459,6 +466,7 @@ class StreamingMusicRepositoryImpl(
         return when (normalizeServiceId(serviceId)) {
             StreamingServiceId.SUBSONIC -> subsonicClient.isConnected()
             StreamingServiceId.JELLYFIN -> jellyfinClient.isConnected()
+            StreamingServiceId.OCTAVE -> true
             StreamingServiceId.JIOSAAVN -> true
             else -> false
         }
@@ -472,6 +480,7 @@ class StreamingMusicRepositoryImpl(
         return when (activeServiceId()) {
             StreamingServiceId.SUBSONIC -> subsonicClient.ping().isSuccess
             StreamingServiceId.JELLYFIN -> jellyfinClient.ping().isSuccess
+            StreamingServiceId.OCTAVE -> true
             StreamingServiceId.JIOSAAVN -> true
             else -> false
         }
@@ -492,6 +501,13 @@ class StreamingMusicRepositoryImpl(
             .take(limit.coerceAtLeast(1))
             .toList()
         if (cached.isNotEmpty()) return cached
+
+        if (activeServiceId() == StreamingServiceId.OCTAVE) {
+            val chartSongs = octaveClient.getTopCharts(limit).getOrNull().orEmpty()
+            val mapped = mapProviderSongs(StreamingServiceId.OCTAVE, chartSongs)
+            mergeCatalog(mapped)
+            return mapped
+        }
 
         if (activeServiceId() == StreamingServiceId.JIOSAAVN) {
             val chartSongs = jiosaavnClient.getTopCharts(limit).getOrNull().orEmpty()
@@ -517,6 +533,9 @@ class StreamingMusicRepositoryImpl(
             StreamingServiceId.JELLYFIN -> {
                 jellyfinClient.getAlbumList("newest", limit).getOrNull() ?: emptyList()
             }
+            StreamingServiceId.OCTAVE -> {
+                octaveClient.getNewReleases(limit).getOrNull() ?: emptyList()
+            }
             StreamingServiceId.JIOSAAVN -> {
                 jiosaavnClient.getNewReleases(limit).getOrNull() ?: emptyList()
             }
@@ -537,6 +556,11 @@ class StreamingMusicRepositoryImpl(
             .filterIsInstance<StreamingPlaylist>()
             .take(limit.coerceAtLeast(1))
         if (inFlow.isNotEmpty()) return inFlow
+
+        if (activeServiceId() == StreamingServiceId.OCTAVE) {
+            val featured = octaveClient.getFeaturedPlaylists(limit).getOrNull().orEmpty()
+            return featured.map { mapProviderPlaylist(StreamingServiceId.OCTAVE, it) }
+        }
 
         if (activeServiceId() == StreamingServiceId.JIOSAAVN) {
             val featured = jiosaavnClient.getFeaturedPlaylists(limit).getOrNull().orEmpty()
@@ -862,6 +886,7 @@ class StreamingMusicRepositoryImpl(
         val resolved = when (serviceId) {
             StreamingServiceId.SUBSONIC -> subsonicClient.buildStreamUrl(providerId, bitrate)
             StreamingServiceId.JELLYFIN -> jellyfinClient.buildStreamUrl(providerId, bitrate)
+            StreamingServiceId.OCTAVE -> octaveClient.buildStreamUrl(providerId, bitrate)
             StreamingServiceId.JIOSAAVN -> jiosaavnClient.buildStreamUrl(providerId, bitrate)
             else -> null
         }
@@ -959,6 +984,7 @@ class StreamingMusicRepositoryImpl(
                     val providerTracksResult = when (serviceId) {
                         StreamingServiceId.SUBSONIC -> subsonicClient.getArtistTopTracks(artistName, limit)
                         StreamingServiceId.JELLYFIN -> jellyfinClient.getArtistTopTracks(artistName, limit)
+                        StreamingServiceId.OCTAVE -> octaveClient.searchSongs(artistName, limit)
                         StreamingServiceId.JIOSAAVN -> jiosaavnClient.searchSongs(artistName, limit)
                         else -> Result.success(emptyList())
                     }
@@ -989,6 +1015,7 @@ class StreamingMusicRepositoryImpl(
                 val searchResults = when (decodedId.serviceId) {
                     StreamingServiceId.SUBSONIC -> subsonicClient.searchAlbums(albumTitle).getOrNull()
                     StreamingServiceId.JELLYFIN -> jellyfinClient.searchAlbums(albumTitle).getOrNull()
+                    StreamingServiceId.OCTAVE -> octaveClient.searchAlbums(albumTitle).getOrNull()
                     StreamingServiceId.JIOSAAVN -> jiosaavnClient.searchAlbums(albumTitle).getOrNull()
                     else -> null
                 }
@@ -1007,6 +1034,7 @@ class StreamingMusicRepositoryImpl(
                 val providerSongs = when (decodedId.serviceId) {
                     StreamingServiceId.SUBSONIC -> subsonicClient.getAlbumSongs(resolvedProviderAlbumId).getOrNull()
                     StreamingServiceId.JELLYFIN -> jellyfinClient.getAlbumSongs(resolvedProviderAlbumId).getOrNull()
+                    StreamingServiceId.OCTAVE -> octaveClient.getAlbumSongs(resolvedProviderAlbumId).getOrNull()
                     StreamingServiceId.JIOSAAVN -> jiosaavnClient.getAlbumSongs(resolvedProviderAlbumId).getOrNull()
                     else -> null
                 }
@@ -1371,6 +1399,7 @@ class StreamingMusicRepositoryImpl(
                     val providerResult = when (serviceId) {
                         StreamingServiceId.SUBSONIC -> subsonicClient.getAlbumList(type, limit)
                         StreamingServiceId.JELLYFIN -> jellyfinClient.getAlbumList(type, limit)
+                        StreamingServiceId.OCTAVE -> octaveClient.getNewReleases(limit)
                         StreamingServiceId.JIOSAAVN -> jiosaavnClient.getNewReleases(limit)
                         else -> Result.success(emptyList())
                     }
@@ -1440,6 +1469,7 @@ class StreamingMusicRepositoryImpl(
         val providerResult: Result<List<ProviderSong>> = when (serviceId) {
             StreamingServiceId.SUBSONIC -> subsonicClient.searchSongs(query, SEARCH_LIMIT)
             StreamingServiceId.JELLYFIN -> jellyfinClient.searchSongs(query, SEARCH_LIMIT)
+            StreamingServiceId.OCTAVE -> octaveClient.searchSongs(query, SEARCH_LIMIT)
             StreamingServiceId.JIOSAAVN -> jiosaavnClient.searchSongs(query, SEARCH_LIMIT)
             else -> Result.success(emptyList())
         }
@@ -1465,6 +1495,7 @@ class StreamingMusicRepositoryImpl(
         val providerResult = when (serviceId) {
             StreamingServiceId.SUBSONIC -> subsonicClient.searchAlbums(query, SEARCH_LIMIT)
             StreamingServiceId.JELLYFIN -> jellyfinClient.searchAlbums(query, SEARCH_LIMIT)
+            StreamingServiceId.OCTAVE -> octaveClient.searchAlbums(query, SEARCH_LIMIT)
             StreamingServiceId.JIOSAAVN -> jiosaavnClient.searchAlbums(query, SEARCH_LIMIT)
             else -> Result.success(emptyList())
         }
@@ -1486,6 +1517,7 @@ class StreamingMusicRepositoryImpl(
         val providerArtists = when (serviceId) {
             StreamingServiceId.SUBSONIC -> subsonicClient.searchArtists(query)
             StreamingServiceId.JELLYFIN -> jellyfinClient.searchArtists(query)
+            StreamingServiceId.OCTAVE -> octaveClient.searchArtists(query)
             StreamingServiceId.JIOSAAVN -> jiosaavnClient.searchArtists(query)
             else -> Result.success(emptyList())
         }.getOrElse { emptyList() }
@@ -1510,6 +1542,7 @@ class StreamingMusicRepositoryImpl(
         val result = when (serviceId) {
             StreamingServiceId.SUBSONIC -> subsonicClient.searchPlaylists(query)
             StreamingServiceId.JELLYFIN -> jellyfinClient.searchPlaylists(query)
+            StreamingServiceId.OCTAVE -> octaveClient.searchPlaylists(query)
             StreamingServiceId.JIOSAAVN -> jiosaavnClient.searchPlaylists(query)
             else -> Result.success(emptyList())
         }
@@ -1586,6 +1619,7 @@ class StreamingMusicRepositoryImpl(
         val providerSongs = when (serviceId) {
             StreamingServiceId.SUBSONIC -> fetchSubsonicLibraryResumable(limit, onProgress) { fetchComplete.set(false) }
             StreamingServiceId.JELLYFIN -> jellyfinClient.fetchLibrarySongs(limit, onProgress)
+            StreamingServiceId.OCTAVE -> octaveClient.getTopCharts(limit)
             StreamingServiceId.JIOSAAVN -> jiosaavnClient.getTopCharts(limit)
             else -> Result.success(emptyList())
         }.getOrElse { emptyList() }
@@ -1666,6 +1700,7 @@ class StreamingMusicRepositoryImpl(
         val result = when (serviceId) {
             StreamingServiceId.SUBSONIC -> subsonicClient.getPlaylists()
             StreamingServiceId.JELLYFIN -> jellyfinClient.getPlaylists()
+            StreamingServiceId.OCTAVE -> octaveClient.getFeaturedPlaylists()
             StreamingServiceId.JIOSAAVN -> jiosaavnClient.getFeaturedPlaylists()
             else -> Result.success(emptyList())
         }
@@ -1700,6 +1735,7 @@ class StreamingMusicRepositoryImpl(
                     val searchResults = when (decodedId.serviceId) {
                         StreamingServiceId.SUBSONIC -> subsonicClient.searchAlbums(albumTitle).getOrNull()
                         StreamingServiceId.JELLYFIN -> jellyfinClient.searchAlbums(albumTitle).getOrNull()
+                        StreamingServiceId.OCTAVE -> octaveClient.searchAlbums(albumTitle).getOrNull()
                         StreamingServiceId.JIOSAAVN -> jiosaavnClient.searchAlbums(albumTitle).getOrNull()
                         else -> null
                     }
@@ -1718,6 +1754,7 @@ class StreamingMusicRepositoryImpl(
                     val providerResult = when (decodedId.serviceId) {
                         StreamingServiceId.SUBSONIC -> subsonicClient.getAlbumById(providerAlbumId)
                         StreamingServiceId.JELLYFIN -> jellyfinClient.getAlbumById(providerAlbumId)
+                        StreamingServiceId.OCTAVE -> octaveClient.getAlbumDetails(providerAlbumId)
                         StreamingServiceId.JIOSAAVN -> {
                             val songs = jiosaavnClient.getAlbumSongs(providerAlbumId).getOrNull().orEmpty()
                             if (songs.isNotEmpty()) {
@@ -2006,6 +2043,7 @@ class StreamingMusicRepositoryImpl(
         val result = when (serviceId) {
             StreamingServiceId.SUBSONIC -> subsonicClient.getPlaylistSongs(providerPlaylistId)
             StreamingServiceId.JELLYFIN -> jellyfinClient.getPlaylistSongs(providerPlaylistId)
+            StreamingServiceId.OCTAVE -> octaveClient.getPlaylistSongs(providerPlaylistId)
             StreamingServiceId.JIOSAAVN -> jiosaavnClient.getPlaylistSongs(providerPlaylistId)
             else -> Result.success(emptyList())
         }
@@ -2463,6 +2501,7 @@ class StreamingMusicRepositoryImpl(
         return when (serviceId) {
             StreamingServiceId.SUBSONIC -> SourceType.SUBSONIC
             StreamingServiceId.JELLYFIN -> SourceType.JELLYFIN
+            StreamingServiceId.OCTAVE -> SourceType.OCTAVE
             StreamingServiceId.JIOSAAVN -> SourceType.JIOSAAVN
             else -> SourceType.UNKNOWN
         }

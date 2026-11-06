@@ -57,7 +57,7 @@ class StreamingServiceSessionRepository(context: Context) {
 
     private fun loadSessions(): Map<String, StreamingServiceSession> {
         return StreamingServiceId.all.associateWith { serviceId ->
-            val defaultConnected = serviceId == StreamingServiceId.JIOSAAVN
+            val defaultConnected = serviceId == StreamingServiceId.OCTAVE || serviceId == StreamingServiceId.JIOSAAVN
             StreamingServiceSession(
                 serviceId = serviceId,
                 isConnected = prefs.getBoolean(keyConnected(serviceId), defaultConnected),
@@ -69,7 +69,7 @@ class StreamingServiceSessionRepository(context: Context) {
     }
 
     private fun defaultSession(serviceId: String): StreamingServiceSession {
-        val defaultConnected = serviceId == StreamingServiceId.JIOSAAVN
+        val defaultConnected = serviceId == StreamingServiceId.OCTAVE || serviceId == StreamingServiceId.JIOSAAVN
         return StreamingServiceSession(
             serviceId = serviceId,
             isConnected = defaultConnected,
