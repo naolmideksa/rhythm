@@ -48,6 +48,8 @@ import android.net.NetworkCapabilities
 import android.widget.Toast
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.async
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
@@ -109,6 +111,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var networkLostJob: Job? = null
     private var networkAvailableJob: Job? = null
+    private var searchJob: Job? = null
     private val authMutex = Mutex()
     private var lastSuccessfulAuthTimestamp = 0L
 
@@ -1059,13 +1062,16 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      */
     fun search(query: String) {
         _searchQuery.value = query
+        searchJob?.cancel()
 
         if (query.isBlank()) {
             _searchResults.value = StreamingSearchResults()
+            _isLoading.value = false
             return
         }
 
-        viewModelScope.launch {
+        searchJob = viewModelScope.launch {
+            delay(250) // Debounce rapid keystrokes to prevent race conditions
             _isLoading.value = true
 
             try {
@@ -1088,10 +1094,15 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     return@launch
                 }
 
-                val songs = repository.searchSongs(query).filterIsInstance<StreamingSong>()
-                val artistsFromRepository = repository.searchArtists(query).filterIsInstance<StreamingArtist>()
-                val albumsFromRepository = repository.searchAlbums(query).filterIsInstance<StreamingAlbum>()
-                val playlists = repository.searchPlaylists(query).filterIsInstance<StreamingPlaylist>()
+                val songsDef = async { repository.searchSongs(query).filterIsInstance<StreamingSong>() }
+                val artistsDef = async { repository.searchArtists(query).filterIsInstance<StreamingArtist>() }
+                val albumsDef = async { repository.searchAlbums(query).filterIsInstance<StreamingAlbum>() }
+                val playlistsDef = async { repository.searchPlaylists(query).filterIsInstance<StreamingPlaylist>() }
+
+                val songs = songsDef.await()
+                val artistsFromRepository = artistsDef.await()
+                val albumsFromRepository = albumsDef.await()
+                val playlists = playlistsDef.await()
 
                 _searchResults.value = StreamingSearchResults(
                     songs = songs,
@@ -1099,6 +1110,8 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                     artists = artistsFromRepository,
                     playlists = playlists
                 )
+            } catch (e: CancellationException) {
+                // Ignore cancelled search jobs from newer queries
             } catch (e: Exception) {
                 showToast("Search failed: ${e.message}")
             } finally {
@@ -1185,25 +1198,18 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             }
 
             val selectedSong = queueToPlay[selectedIndex]
-            val queueWithResolvedSongs = queueToPlay.map { song ->
-                val fallbackUrl = song.streamingUrl?.takeIf { cachedUrl ->
-                    val isNetworkUrl =
-                        cachedUrl.startsWith("http://", ignoreCase = true) ||
-                            cachedUrl.startsWith("https://", ignoreCase = true)
-                    !isNetworkUrl || !song.id.contains("::")
-                }
-                val resolvedUrl = repository.getStreamingUrl(song.id)
-                    ?: fallbackUrl
+            val fallbackUrl = selectedSong.streamingUrl?.takeIf { cachedUrl ->
+                val isNetworkUrl =
+                    cachedUrl.startsWith("http://", ignoreCase = true) ||
+                        cachedUrl.startsWith("https://", ignoreCase = true)
+                !isNetworkUrl || !selectedSong.id.contains("::")
+            } ?: selectedSong.previewUrl
 
-                if (resolvedUrl.isNullOrBlank()) {
-                    song
-                } else {
-                    song.copy(streamingUrl = resolvedUrl)
-                }
-            }
+            // Resolve streaming URL for the selected song immediately so playback starts instantly
+            val selectedResolvedUrl = repository.getStreamingUrl(selectedSong.id)
+                ?: fallbackUrl
 
-            val selectedResolvedSong = queueWithResolvedSongs[selectedIndex]
-            if (selectedResolvedSong.streamingUrl.isNullOrBlank()) {
+            if (selectedResolvedUrl.isNullOrBlank()) {
                 val errorMsg = when {
                     appSettings.offlineMode.value -> "Offline mode: Song not in cache"
                     !NetworkUtils.canStream(getApplication(), appSettings.allowCellularStreaming.value) -> "Streaming not allowed on current network"
@@ -1213,11 +1219,29 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
                 return@launch
             }
 
-            _queue.value = queueWithResolvedSongs
+            val selectedResolvedSong = selectedSong.copy(streamingUrl = selectedResolvedUrl)
+            val initialQueue = queueToPlay.mapIndexed { idx, song ->
+                if (idx == selectedIndex) selectedResolvedSong
+                else if (song.streamingUrl.isNullOrBlank() && !song.previewUrl.isNullOrBlank()) song.copy(streamingUrl = song.previewUrl)
+                else song
+            }
+
+            _queue.value = initialQueue
             _currentSong.value = selectedResolvedSong
             _isPlaying.value = true
 
-            playbackHandler?.invoke(queueWithResolvedSongs, selectedIndex)
+            playbackHandler?.invoke(initialQueue, selectedIndex)
+
+            // Pre-warm subsequent tracks asynchronously in background
+            viewModelScope.launch(Dispatchers.IO) {
+                val nextIndices = ((selectedIndex + 1)..minOf(selectedIndex + 3, queueToPlay.lastIndex))
+                for (nextIdx in nextIndices) {
+                    val nextSong = queueToPlay[nextIdx]
+                    try {
+                        repository.getStreamingUrl(nextSong.id)
+                    } catch (_: Exception) {}
+                }
+            }
             }
     }
 

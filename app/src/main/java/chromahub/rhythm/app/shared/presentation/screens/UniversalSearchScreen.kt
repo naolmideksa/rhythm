@@ -240,7 +240,7 @@ fun UniversalSearchScreen(
     }
 
     LaunchedEffect(query) {
-        if (query.isNotBlank() && streamingQuery != query) {
+        if (streamingQuery != query) {
             streamingViewModel.search(query)
         }
     }

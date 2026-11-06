@@ -281,26 +281,74 @@ class OctaveApiClient internal constructor(
         }
     }
 
+    private fun sanitizeQuery(query: String): String {
+        return query.trim().replace(Regex("""([a-zA-Z])\1{2,}"""), "$1")
+    }
+
     suspend fun searchSongs(query: String, limit: Int = 30): Result<List<ProviderSong>> = withContext(Dispatchers.IO) {
+        val trimmed = query.trim()
         val url = "$BASE_URL/api/search/tracks".toHttpUrlOrNull()?.newBuilder()
-            ?.addQueryParameter("query", query)
+            ?.addQueryParameter("query", trimmed)
             ?.addQueryParameter("limit", limit.toString())
             ?.build() ?: return@withContext Result.failure(IOException("Invalid URL"))
 
-        val json = executeGet(url) ?: return@withContext Result.success(emptyList())
-        val results = json.optJSONArray("results") ?: JSONArray()
-        Result.success(parseSongsArray(results))
+        val json = executeGet(url)
+        val results = json?.optJSONArray("results") ?: JSONArray()
+        var songs = parseSongsArray(results)
+
+        val sanitized = sanitizeQuery(trimmed)
+        if (songs.isEmpty() && sanitized.isNotBlank() && !sanitized.equals(trimmed, ignoreCase = true)) {
+            val retryUrl = "$BASE_URL/api/search/tracks".toHttpUrlOrNull()?.newBuilder()
+                ?.addQueryParameter("query", sanitized)
+                ?.addQueryParameter("limit", limit.toString())
+                ?.build()
+            if (retryUrl != null) {
+                val retryJson = executeGet(retryUrl)
+                val retryResults = retryJson?.optJSONArray("results") ?: JSONArray()
+                songs = parseSongsArray(retryResults)
+            }
+        }
+
+        // If track search yielded few or no results, check if the query is an album name and pull its songs
+        if (songs.size < 5) {
+            val albumMatch = searchAlbums(sanitized.ifBlank { trimmed }, limit = 3).getOrNull()?.firstOrNull()
+            if (albumMatch != null) {
+                val albumSongs = getAlbumSongs(albumMatch.providerId).getOrNull().orEmpty()
+                if (albumSongs.isNotEmpty()) {
+                    val combined = (songs + albumSongs).distinctBy { it.providerId }
+                    return@withContext Result.success(combined.take(limit))
+                }
+            }
+        }
+
+        Result.success(songs)
     }
 
     suspend fun searchAlbums(query: String, limit: Int = 20): Result<List<ProviderAlbum>> = withContext(Dispatchers.IO) {
+        val trimmed = query.trim()
         val url = "$BASE_URL/api/search/albums".toHttpUrlOrNull()?.newBuilder()
-            ?.addQueryParameter("query", query)
+            ?.addQueryParameter("query", trimmed)
             ?.addQueryParameter("limit", limit.toString())
             ?.build() ?: return@withContext Result.failure(IOException("Invalid URL"))
 
-        val json = executeGet(url) ?: return@withContext Result.success(emptyList())
-        val results = json.optJSONArray("results") ?: JSONArray()
-        Result.success(parseAlbumsArray(results))
+        val json = executeGet(url)
+        val results = json?.optJSONArray("results") ?: JSONArray()
+        var albums = parseAlbumsArray(results)
+
+        val sanitized = sanitizeQuery(trimmed)
+        if (albums.isEmpty() && sanitized.isNotBlank() && !sanitized.equals(trimmed, ignoreCase = true)) {
+            val retryUrl = "$BASE_URL/api/search/albums".toHttpUrlOrNull()?.newBuilder()
+                ?.addQueryParameter("query", sanitized)
+                ?.addQueryParameter("limit", limit.toString())
+                ?.build()
+            if (retryUrl != null) {
+                val retryJson = executeGet(retryUrl)
+                val retryResults = retryJson?.optJSONArray("results") ?: JSONArray()
+                albums = parseAlbumsArray(retryResults)
+            }
+        }
+
+        Result.success(albums)
     }
 
     suspend fun searchArtists(query: String, limit: Int = 20): Result<List<ProviderArtist>> = withContext(Dispatchers.IO) {
@@ -380,7 +428,8 @@ class OctaveApiClient internal constructor(
         val json = executeGet(url) ?: return@withContext Result.success(emptyList())
         val albumObj = json.optJSONObject("album") ?: return@withContext Result.success(emptyList())
         val tracksArray = albumObj.optJSONArray("tracks") ?: JSONArray()
-        Result.success(parseSongsArray(tracksArray, defaultAlbumObj = albumObj))
+        val songs = parseSongsArray(tracksArray, defaultAlbumObj = albumObj)
+        Result.success(songs.sortedBy { it.trackNumber ?: Int.MAX_VALUE })
     }
 
     suspend fun getAlbumDetails(albumId: String): Result<ProviderAlbum> = withContext(Dispatchers.IO) {
@@ -478,6 +527,11 @@ class OctaveApiClient internal constructor(
                 trackMetaCache[id] = TrackMeta(title, artist, durationSec)
             }
 
+            val trackNum = item.optInt(
+                "track_position",
+                item.optInt("track_number", item.optInt("trackNumber", if (defaultAlbumObj != null) i + 1 else 0))
+            ).takeIf { it > 0 }
+
             songs.add(
                 ProviderSong(
                     providerId = id,
@@ -487,8 +541,10 @@ class OctaveApiClient internal constructor(
                     albumId = albumId,
                     durationMs = durationSec * 1000L,
                     artworkUrl = artworkUrl,
+                    trackNumber = trackNum,
                     codec = "mp3",
-                    bitrate = 320
+                    bitrate = 320,
+                    previewUrl = previewUrl.ifBlank { null }
                 )
             )
         }

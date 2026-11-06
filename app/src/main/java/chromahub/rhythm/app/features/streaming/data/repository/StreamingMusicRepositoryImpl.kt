@@ -1048,13 +1048,19 @@ class StreamingMusicRepositoryImpl(
                     else -> null
                 }
                 if (!providerSongs.isNullOrEmpty()) {
-                    return providerSongs.mapNotNull { providerSong ->
+                    val mapped = providerSongs.mapNotNull { providerSong ->
                         try {
                             mapProviderSong(decodedId.serviceId, providerSong)
                         } catch (e: Exception) {
                             null
                         }
                     }
+                    val sorted = if (mapped.any { (it.trackNumber ?: 0) > 0 }) {
+                        mapped.sortedBy { it.trackNumber ?: Int.MAX_VALUE }
+                    } else {
+                        mapped
+                    }
+                    return sorted
                 }
             } catch (e: Exception) {
                 Log.w("StreamingMusicRepo", "Network getAlbumSongs failed for album $albumId, falling back to offline", e)
@@ -1194,19 +1200,6 @@ class StreamingMusicRepositoryImpl(
         if (isDownloaded(songId)) return@withContext true
         
         val (serviceId, providerId) = decodeSongId(songId) ?: return@withContext false
-        
-        val bitrate = desiredBitrateKbps()
-        val primaryDownloadUrl = when (serviceId) {
-            StreamingServiceId.SUBSONIC -> subsonicClient.buildDownloadUrl(providerId, format = "raw")
-            StreamingServiceId.JELLYFIN -> jellyfinClient.buildDownloadUrl(providerId)
-            else -> null
-        }
-        val fallbackStreamUrl = when (serviceId) {
-            StreamingServiceId.SUBSONIC -> subsonicClient.buildStreamUrl(providerId, bitrate)
-            StreamingServiceId.JELLYFIN -> jellyfinClient.buildStreamUrl(providerId, bitrate)
-            else -> null
-        }
-        val targetUrl = primaryDownloadUrl ?: fallbackStreamUrl ?: return@withContext false
 
         var song = songCache[songId]
             ?: songsFlow.value.filterIsInstance<StreamingSong>().firstOrNull { it.id == songId }
@@ -1217,6 +1210,29 @@ class StreamingMusicRepositoryImpl(
             song = (getSongById(songId) as? StreamingSong)
         }
         val finalSong = song ?: return@withContext false
+
+        val bitrate = desiredBitrateKbps()
+        val primaryDownloadUrl = when (serviceId) {
+            StreamingServiceId.SUBSONIC -> subsonicClient.buildDownloadUrl(providerId, format = "raw")
+            StreamingServiceId.JELLYFIN -> jellyfinClient.buildDownloadUrl(providerId)
+            else -> null
+        }
+        val fallbackStreamUrl = when (serviceId) {
+            StreamingServiceId.SUBSONIC -> subsonicClient.buildStreamUrl(providerId, bitrate)
+            StreamingServiceId.JELLYFIN -> jellyfinClient.buildStreamUrl(providerId, bitrate)
+            StreamingServiceId.OCTAVE -> {
+                finalSong.streamingUrl ?: octaveClient.buildStreamUrl(
+                    providerId = providerId,
+                    bitrate = bitrate,
+                    title = finalSong.title,
+                    artist = finalSong.artist,
+                    durationSec = finalSong.duration.let { it / 1000 }
+                ) ?: finalSong.previewUrl
+            }
+            StreamingServiceId.JIOSAAVN -> jiosaavnClient.buildStreamUrl(providerId, bitrate)
+            else -> null
+        }
+        val targetUrl = primaryDownloadUrl ?: fallbackStreamUrl ?: return@withContext false
 
         val client = UserTrustManager.buildUserTrustingHttpClientBuilder()
             .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
@@ -2032,7 +2048,7 @@ class StreamingMusicRepositoryImpl(
             artworkUri = providerSong.artworkUrl,
             sourceType = sourceType,
             streamingUrl = streamingUrl,
-            previewUrl = null,
+            previewUrl = providerSong.previewUrl,
             isPlayable = true,
             externalId = providerSong.providerId,
             albumId = encodedAlbumId,
