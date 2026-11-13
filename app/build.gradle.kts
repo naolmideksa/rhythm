@@ -100,14 +100,9 @@ android {
             keyPassword = signingProperties.property("key_password")
             storePassword = signingProperties.property("store_password")
             storeFile = rootProject.file(signingProperties.property("store_file"))
-            v1SigningEnabled = true
-            v2SigningEnabled = true
         }
     } else {
-        signingConfigs.getByName("debug").apply {
-            v1SigningEnabled = true
-            v2SigningEnabled = true
-        }
+        signingConfigs.getByName("debug")
     }
 
     defaultConfig {
