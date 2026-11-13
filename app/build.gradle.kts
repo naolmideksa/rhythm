@@ -100,9 +100,14 @@ android {
             keyPassword = signingProperties.property("key_password")
             storePassword = signingProperties.property("store_password")
             storeFile = rootProject.file(signingProperties.property("store_file"))
+            v1SigningEnabled = true
+            v2SigningEnabled = true
         }
     } else {
-        signingConfigs.getByName("debug")
+        signingConfigs.getByName("debug").apply {
+            v1SigningEnabled = true
+            v2SigningEnabled = true
+        }
     }
 
     defaultConfig {
@@ -180,13 +185,10 @@ android {
         }
     }
 
-    // ABI splits: create smaller per-architecture APKs (reduces size by ~5–10 MB each)
+    // Single universal APK: no ABI splits
     splits {
         abi {
-            isEnable = true
-            reset()
-            include("arm64-v8a", "armeabi-v7a", "x86_64", "x86")
-            isUniversalApk = true // also keep a universal APK for IzzyOnDroid/F-Droid
+            isEnable = false
         }
     }
 

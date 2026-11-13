@@ -37,7 +37,7 @@ jobs:
     - name: Build with Gradle (GitHub flavor only)
       env:
         APPLE_MUSIC_FALLBACK_TOKEN: ${{ secrets.APPLE_MUSIC_FALLBACK_TOKEN }}
-      run: ./gradlew assembleGithubRelease assembleGithubDebug
+      run: ./gradlew assembleGithubDebug
 
     - name: Generate build info
       if: github.event_name == 'pull_request'
@@ -46,12 +46,10 @@ jobs:
         echo "Commit: ${{ github.sha }}" >> build_info.txt
         echo "Branch: ${{ github.head_ref }}" >> build_info.txt
 
-    - name: Upload APK artifacts
+    - name: Upload Universal APK
       if: always()
       uses: actions/upload-artifact@v4
       with:
-        name: rhythm-tunes-apk
-        path: |
-          app/build/outputs/apk/github/debug/*.apk
-          app/build/outputs/apk/github/release/*.apk
+        name: rhythm-universal-apk
+        path: app/build/outputs/apk/github/debug/*.apk
         retention-days: 14
