@@ -16,9 +16,15 @@ data class StreamingServiceOption(
 )
 
 object StreamingServiceOptions {
+    const val MONOCHROME = StreamingServiceId.MONOCHROME
     const val SUBSONIC = StreamingServiceId.SUBSONIC
     const val JELLYFIN = StreamingServiceId.JELLYFIN
     val defaults: List<StreamingServiceOption> = listOf(
+        StreamingServiceOption(
+            id = MONOCHROME,
+            nameRes = R.string.streaming_service_monochrome,
+            descriptionRes = R.string.streaming_service_monochrome_desc
+        ),
         StreamingServiceOption(
             id = SUBSONIC,
             nameRes = R.string.streaming_service_subsonic,

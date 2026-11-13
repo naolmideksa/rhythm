@@ -229,6 +229,8 @@ import androidx.compose.ui.res.stringResource
 
 sealed class Screen(val route: String) {
     object Home : Screen("home")
+    object Browse : Screen("browse")
+    object Radio : Screen("radio")
     object Search : Screen("search")
     object Library : Screen("library?tab={tab}") {
         fun createRoute(tab: LibraryTab = LibraryTab.SONGS): String = "library?tab=${tab.name.lowercase()}"
@@ -608,19 +610,20 @@ fun LocalNavigation(
             currentRoute != Screen.Search.route
     val showNavBar = remember(currentRoute) {
         currentRoute == Screen.Home.route ||
+            currentRoute == Screen.Browse.route ||
+            currentRoute == Screen.Radio.route ||
             isLibraryRoute ||
             currentRoute == Screen.Search.route ||
             currentRoute == Screen.Settings.route ||
             currentRoute == Screen.RhythmStats.route
     }
     val showBottomNav = remember(currentRoute, floatingNavigationBar) {
-        if (floatingNavigationBar) {
-            currentRoute == Screen.Home.route || isLibraryRoute
-        } else {
-            currentRoute == Screen.Home.route ||
-                isLibraryRoute ||
-                currentRoute == Screen.Settings.route
-        }
+        currentRoute == Screen.Home.route ||
+            currentRoute == Screen.Browse.route ||
+            currentRoute == Screen.Radio.route ||
+            isLibraryRoute ||
+            currentRoute == Screen.Search.route ||
+            currentRoute == Screen.Settings.route
     }
     
     val systemNavBarPadding = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
@@ -1483,19 +1486,34 @@ private fun LocalNavigationContent(
                                             Screen.Library.createRoute(firstVisibleLibraryTab)
                                         val items = listOf(
                                              Triple(
-                                                 Screen.Home.route, context.getString(R.string.common_home),
+                                                 Screen.Home.route, "Listen Now",
                                                  Pair(RhythmIcons.HomeFilled, RhythmIcons.Home)
                                              ),
                                              Triple(
-                                                 libraryRoute, context.getString(R.string.common_library),
+                                                 Screen.Browse.route, "Browse",
+                                                 Pair(MaterialSymbolIcon("explore", filled = true), MaterialSymbolIcon("explore"))
+                                             ),
+                                             Triple(
+                                                 Screen.Radio.route, "Radio",
+                                                 Pair(MaterialSymbolIcon("radio", filled = true), MaterialSymbolIcon("radio"))
+                                             ),
+                                             Triple(
+                                                 libraryRoute, "Library",
                                                  Pair(RhythmIcons.Navigation.Library, RhythmIcons.Navigation.LibraryOutlined)
+                                             ),
+                                             Triple(
+                                                 Screen.Search.route, "Search",
+                                                 Pair(RhythmIcons.SearchFilled, RhythmIcons.Search)
                                              )
                                          )
 
                                          items.forEachIndexed { index, (route, title, icons) ->
                                              val isSelected = when (route) {
                                                  Screen.Home.route -> currentRoute == Screen.Home.route
+                                                 Screen.Browse.route -> currentRoute == Screen.Browse.route
+                                                 Screen.Radio.route -> currentRoute == Screen.Radio.route
                                                  libraryRoute -> currentRoute.startsWith("library")
+                                                 Screen.Search.route -> currentRoute == Screen.Search.route
                                                  else -> false
                                              }
 
@@ -1700,28 +1718,33 @@ private fun LocalNavigationContent(
                             }
                         }
                     } else {
-                        // Docked navigation bar
+                        // Docked navigation bar (5-tab Apple Music structure)
                         val libraryRoute = Screen.Library.createRoute(firstVisibleLibraryTab)
                         val dockedItems = listOf(
                             Triple(
                                 Screen.Home.route,
-                                context.getString(R.string.common_home),
+                                "Listen Now",
                                 Pair(RhythmIcons.HomeFilled, RhythmIcons.Home)
                             ),
                             Triple(
+                                Screen.Browse.route,
+                                "Browse",
+                                Pair(MaterialSymbolIcon("explore", filled = true), MaterialSymbolIcon("explore"))
+                            ),
+                            Triple(
+                                Screen.Radio.route,
+                                "Radio",
+                                Pair(MaterialSymbolIcon("radio", filled = true), MaterialSymbolIcon("radio"))
+                            ),
+                            Triple(
                                 libraryRoute,
-                                context.getString(R.string.common_library),
+                                "Library",
                                 Pair(RhythmIcons.Navigation.Library, RhythmIcons.Navigation.LibraryOutlined)
                             ),
                             Triple(
                                 Screen.Search.route,
-                                stringResource(R.string.cd_search),
+                                "Search",
                                 Pair(RhythmIcons.SearchFilled, RhythmIcons.Search)
-                            ),
-                            Triple(
-                                Screen.Settings.route,
-                                context.getString(R.string.settings_title),
-                                Pair(RhythmIcons.SettingsFilled, RhythmIcons.Settings)
                             )
                         )
 
@@ -1782,6 +1805,8 @@ private fun LocalNavigationContent(
                                 dockedItems.forEach { (route, title, icons) ->
                                     val isSelected = when (route) {
                                         Screen.Home.route -> currentRoute == Screen.Home.route
+                                        Screen.Browse.route -> currentRoute == Screen.Browse.route
+                                        Screen.Radio.route -> currentRoute == Screen.Radio.route
                                         libraryRoute -> currentRoute.startsWith("library")
                                         Screen.Search.route -> currentRoute == Screen.Search.route
                                         Screen.Settings.route -> currentRoute == Screen.Settings.route
@@ -2084,6 +2109,62 @@ private fun LocalNavigationContent(
                                 streamingMusicViewModel.playQueue(queue, 0, true)
                             }
                         )
+                }
+
+                composable(
+                    Screen.Browse.route,
+                    enterTransition = { fadeIn(animationSpec = tween(300)) },
+                    exitTransition = { fadeOut(animationSpec = tween(300)) }
+                ) {
+                    chromahub.rhythm.app.features.streaming.presentation.screens.BrowseScreen(
+                        streamingViewModel = streamingMusicViewModel,
+                        onAlbumClick = { album ->
+                            navController.navigate(StreamingRoutes.album(album.id, album.title)) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onPlaylistClick = { playlist ->
+                            navController.navigate(StreamingRoutes.playlist(playlist.id)) {
+                                launchSingleTop = true
+                            }
+                        },
+                        onSongClick = { song ->
+                            streamingMusicViewModel.playSong(song)
+                            navController.navigate(Screen.Player.route)
+                        },
+                        onCategoryClick = { categoryName ->
+                            streamingMusicViewModel.search(categoryName)
+                            navController.navigate(Screen.Search.route) {
+                                launchSingleTop = true
+                            }
+                        }
+                    )
+                }
+
+                composable(
+                    Screen.Radio.route,
+                    enterTransition = { fadeIn(animationSpec = tween(300)) },
+                    exitTransition = { fadeOut(animationSpec = tween(300)) }
+                ) {
+                    chromahub.rhythm.app.features.streaming.presentation.screens.RadioScreen(
+                        streamingViewModel = streamingMusicViewModel,
+                        onSongClick = { song ->
+                            streamingMusicViewModel.playSong(song)
+                            navController.navigate(Screen.Player.route)
+                        },
+                        onStationClick = { stationName ->
+                            val query = when {
+                                stationName.contains("Chill", ignoreCase = true) -> "Chill"
+                                stationName.contains("Energy", ignoreCase = true) -> "Workout"
+                                stationName.contains("Throwback", ignoreCase = true) -> "Classics"
+                                stationName.contains("Discovery", ignoreCase = true) -> "Trending"
+                                else -> "Hits"
+                            }
+                            streamingMusicViewModel.search(query)
+                            streamingMusicViewModel.playRecommendations(shuffle = true)
+                            navController.navigate(Screen.Player.route)
+                        }
+                    )
                 }
 
                 composable(

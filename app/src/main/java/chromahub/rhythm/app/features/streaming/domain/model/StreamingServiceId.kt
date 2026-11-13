@@ -6,9 +6,11 @@
 package chromahub.rhythm.app.features.streaming.domain.model
 
 object StreamingServiceId {
+    const val MONOCHROME = "MONOCHROME"
     const val SUBSONIC = "SUBSONIC"
     const val JELLYFIN = "JELLYFIN"
     val all = listOf(
+        MONOCHROME,
         SUBSONIC,
         JELLYFIN
     )

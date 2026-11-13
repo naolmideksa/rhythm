@@ -58,7 +58,7 @@ class AppModeViewModel(application: Application) : AndroidViewModel(application)
                 activeService = try {
                     SourceType.valueOf(service.uppercase())
                 } catch (e: IllegalArgumentException) {
-                    SourceType.SUBSONIC
+                    SourceType.MONOCHROME
                 },
                 isAuthenticated = true, // Assume authenticated if service is set
                 streamingQuality = try {

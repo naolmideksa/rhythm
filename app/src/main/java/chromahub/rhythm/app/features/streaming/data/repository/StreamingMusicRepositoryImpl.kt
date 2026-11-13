@@ -83,6 +83,7 @@ class StreamingMusicRepositoryImpl(
 
     private val subsonicClient = SubsonicApiClient(context)
     private val jellyfinClient = JellyfinApiClient(context)
+    private val monochromeClient = chromahub.rhythm.app.features.streaming.data.provider.MonochromeApiClient(context)
 
     private val songsFlow = MutableStateFlow<List<PlayableItem>>(emptyList())
     private val albumsFlow = MutableStateFlow<List<AlbumItem>>(emptyList())
@@ -454,6 +455,7 @@ class StreamingMusicRepositoryImpl(
 
     fun isServiceConnected(serviceId: String): Boolean {
         return when (normalizeServiceId(serviceId)) {
+            StreamingServiceId.MONOCHROME -> monochromeClient.isConnected()
             StreamingServiceId.SUBSONIC -> subsonicClient.isConnected()
             StreamingServiceId.JELLYFIN -> jellyfinClient.isConnected()
             else -> false
@@ -466,6 +468,7 @@ class StreamingMusicRepositoryImpl(
 
     override suspend fun authenticate(): Boolean {
         return when (activeServiceId()) {
+            StreamingServiceId.MONOCHROME -> true
             StreamingServiceId.SUBSONIC -> subsonicClient.ping().isSuccess
             StreamingServiceId.JELLYFIN -> jellyfinClient.ping().isSuccess
             else -> false
@@ -479,6 +482,13 @@ class StreamingMusicRepositoryImpl(
     override suspend fun getRecommendations(limit: Int): List<StreamingSong> {
         if (appSettings.offlineMode.value) {
             return downloadedSongsMap.values.shuffled().take(limit.coerceAtLeast(1))
+        }
+        if (activeServiceId() == StreamingServiceId.MONOCHROME) {
+            val trending = monochromeClient.getTrendingSongs(limit).getOrDefault(emptyList())
+            if (trending.isNotEmpty()) {
+                trending.forEach { songCache[it.id] = it }
+                return trending
+            }
         }
         val activePrefix = "${activeServiceId()}::"
         return songCache.values
@@ -494,6 +504,10 @@ class StreamingMusicRepositoryImpl(
         }
         if (!isServiceConnected(activeServiceId())) {
             return emptyList()
+        }
+        
+        if (activeServiceId() == StreamingServiceId.MONOCHROME) {
+            return monochromeClient.getTrendingAlbums(limit).getOrDefault(emptyList())
         }
         
         return when (activeServiceId()) {
@@ -836,6 +850,7 @@ class StreamingMusicRepositoryImpl(
         val bitrate = desiredBitrateKbps()
 
         val resolved = when (serviceId) {
+            StreamingServiceId.MONOCHROME -> monochromeClient.buildStreamUrl(providerId)
             StreamingServiceId.SUBSONIC -> subsonicClient.buildStreamUrl(providerId, bitrate)
             StreamingServiceId.JELLYFIN -> jellyfinClient.buildStreamUrl(providerId, bitrate)
             else -> null
@@ -977,6 +992,13 @@ class StreamingMusicRepositoryImpl(
 
         if (isOnline && resolvedProviderAlbumId != null) {
             try {
+                if (decodedId.serviceId == StreamingServiceId.MONOCHROME) {
+                    val monochromeSongs = monochromeClient.getAlbumSongs(resolvedProviderAlbumId).getOrDefault(emptyList())
+                    if (monochromeSongs.isNotEmpty()) {
+                        monochromeSongs.forEach { songCache[it.id] = it }
+                        return monochromeSongs
+                    }
+                }
                 val providerSongs = when (decodedId.serviceId) {
                     StreamingServiceId.SUBSONIC -> subsonicClient.getAlbumSongs(resolvedProviderAlbumId).getOrNull()
                     StreamingServiceId.JELLYFIN -> jellyfinClient.getAlbumSongs(resolvedProviderAlbumId).getOrNull()
@@ -1132,11 +1154,13 @@ class StreamingMusicRepositoryImpl(
         
         val bitrate = desiredBitrateKbps()
         val primaryDownloadUrl = when (serviceId) {
+            StreamingServiceId.MONOCHROME -> monochromeClient.buildStreamUrl(providerId)
             StreamingServiceId.SUBSONIC -> subsonicClient.buildDownloadUrl(providerId, format = "raw")
             StreamingServiceId.JELLYFIN -> jellyfinClient.buildDownloadUrl(providerId)
             else -> null
         }
         val fallbackStreamUrl = when (serviceId) {
+            StreamingServiceId.MONOCHROME -> monochromeClient.buildStreamUrl(providerId)
             StreamingServiceId.SUBSONIC -> subsonicClient.buildStreamUrl(providerId, bitrate)
             StreamingServiceId.JELLYFIN -> jellyfinClient.buildStreamUrl(providerId, bitrate)
             else -> null
@@ -1203,6 +1227,7 @@ class StreamingMusicRepositoryImpl(
             if (artworkUri.isNullOrBlank()) {
                 val albumProviderId = finalSong.albumId?.let { decodeSongId(it)?.second }
                 artworkUri = when (serviceId) {
+                    StreamingServiceId.MONOCHROME -> monochromeClient.buildCoverArtUrl(albumProviderId ?: providerId)
                     StreamingServiceId.SUBSONIC -> subsonicClient.buildCoverArtUrl(albumProviderId ?: providerId)
                     StreamingServiceId.JELLYFIN -> jellyfinClient.buildImageUrl(albumProviderId ?: providerId)
                     else -> null
@@ -1325,6 +1350,12 @@ class StreamingMusicRepositoryImpl(
             return emptyList()
         }
 
+        if (serviceId == StreamingServiceId.MONOCHROME) {
+            val monochromeSongs = monochromeClient.getTrendingSongs(limit).getOrDefault(emptyList())
+            monochromeSongs.forEach { songCache[it.id] = it }
+            return monochromeSongs
+        }
+
         val providerResult: Result<List<ProviderSong>> = when (serviceId) {
             StreamingServiceId.SUBSONIC -> subsonicClient.getRandomSongs(limit)
             StreamingServiceId.JELLYFIN -> jellyfinClient.getRandomSongs(limit)
@@ -1406,6 +1437,12 @@ class StreamingMusicRepositoryImpl(
         if (!isServiceConnected(serviceId)) {
             clearInMemoryCatalog()
             return emptyList()
+        }
+
+        if (serviceId == StreamingServiceId.MONOCHROME) {
+            val monochromeSongs = monochromeClient.searchSongs(query, SEARCH_LIMIT).getOrDefault(emptyList())
+            monochromeSongs.forEach { songCache[it.id] = it }
+            return monochromeSongs
         }
 
         val providerResult: Result<List<ProviderSong>> = when (serviceId) {
@@ -2409,6 +2446,7 @@ class StreamingMusicRepositoryImpl(
 
     private fun serviceToSourceType(serviceId: String): SourceType {
         return when (serviceId) {
+            StreamingServiceId.MONOCHROME -> SourceType.MONOCHROME
             StreamingServiceId.SUBSONIC -> SourceType.SUBSONIC
             StreamingServiceId.JELLYFIN -> SourceType.JELLYFIN
             else -> SourceType.UNKNOWN
@@ -2420,7 +2458,7 @@ class StreamingMusicRepositoryImpl(
         return if (StreamingServiceId.all.contains(normalized)) {
             normalized
         } else {
-            StreamingServiceId.SUBSONIC
+            StreamingServiceId.MONOCHROME
         }
     }
 

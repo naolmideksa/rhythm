@@ -213,7 +213,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
     val serviceSessions: StateFlow<Map<String, StreamingServiceSession>> = serviceSessionRepository.sessions
     
-    private val _currentService = MutableStateFlow(SourceType.SUBSONIC)
+    private val _currentService = MutableStateFlow(SourceType.MONOCHROME)
     val currentService: StateFlow<SourceType> = _currentService.asStateFlow()
     
     private val _streamingConfig = MutableStateFlow(StreamingConfig())
@@ -2030,6 +2030,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             val authJob = kotlinx.coroutines.withTimeoutOrNull(6000L) {
                 try {
                     when (normalizedServiceId) {
+                        "MONOCHROME" -> true
                         "SUBSONIC" -> providerRepository?.authenticate() == true
                         "JELLYFIN" -> providerRepository?.authenticate() == true
                         else -> false
@@ -2101,6 +2102,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
     private fun sourceTypeFromServiceId(serviceId: String): SourceType {
         return when (serviceId.uppercase()) {
+            StreamingServiceId.MONOCHROME -> SourceType.MONOCHROME
             StreamingServiceId.SUBSONIC -> SourceType.SUBSONIC
             StreamingServiceId.JELLYFIN -> SourceType.JELLYFIN
             else -> SourceType.UNKNOWN
@@ -2109,6 +2111,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
 
     private fun serviceIdFromSourceType(sourceType: SourceType): String {
         return when (sourceType) {
+            SourceType.MONOCHROME -> StreamingServiceId.MONOCHROME
             SourceType.SUBSONIC -> StreamingServiceId.SUBSONIC
             SourceType.JELLYFIN -> StreamingServiceId.JELLYFIN
             SourceType.SPOTIFY,
@@ -2116,7 +2119,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
             SourceType.YOUTUBE_MUSIC,
             SourceType.DEEZER,
             SourceType.LOCAL,
-            SourceType.UNKNOWN -> StreamingServiceId.SUBSONIC
+            SourceType.UNKNOWN -> StreamingServiceId.MONOCHROME
         }
     }
 
@@ -2125,7 +2128,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
         return if (StreamingServiceId.all.contains(normalized)) {
             normalized
         } else {
-            StreamingServiceId.SUBSONIC
+            StreamingServiceId.MONOCHROME
         }
     }
     
@@ -2134,6 +2137,7 @@ class StreamingMusicViewModel(application: Application) : AndroidViewModel(appli
      */
     fun getSourceTypeName(sourceType: SourceType): String {
         return when (sourceType) {
+            SourceType.MONOCHROME -> "Tunes"
             SourceType.SUBSONIC -> "Subsonic"
             SourceType.JELLYFIN -> "Jellyfin"
             SourceType.SPOTIFY -> "Spotify"

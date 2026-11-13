@@ -35,6 +35,7 @@ interface PlayableItem {
  */
 enum class SourceType {
     LOCAL,
+    MONOCHROME,
     SUBSONIC,
     JELLYFIN,
     SPOTIFY,

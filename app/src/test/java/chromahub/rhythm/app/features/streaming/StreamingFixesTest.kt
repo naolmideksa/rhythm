@@ -387,4 +387,15 @@ class StreamingFixesTest {
         assertTrue(validCodec.length <= 40)
         assertFalse("Comma-separated list of 45 characters must NOT match Jellyfin validation regex", jellyfinValidationRegex.matches(invalidCodecList))
     }
+
+    @Test
+    fun testMonochromeStreamingRules() {
+        // Monochrome does not require a custom server URL
+        assertFalse(chromahub.rhythm.app.features.streaming.domain.model.StreamingServiceRules.requiresServerUrl(
+            chromahub.rhythm.app.features.streaming.domain.model.StreamingServiceId.MONOCHROME
+        ))
+        assertTrue(chromahub.rhythm.app.features.streaming.domain.model.StreamingServiceRules.requiresServerUrl(
+            chromahub.rhythm.app.features.streaming.domain.model.StreamingServiceId.SUBSONIC
+        ))
+    }
 }

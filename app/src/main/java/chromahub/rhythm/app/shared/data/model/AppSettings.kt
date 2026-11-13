@@ -846,7 +846,7 @@ class AppSettings private constructor(context: Context) {
     private val _amoledTheme = MutableStateFlow(prefs.getBoolean(KEY_AMOLED_THEME, false))
     val amoledTheme: StateFlow<Boolean> = _amoledTheme.asStateFlow()
 
-    private val _floatingNavigationBar = MutableStateFlow(prefs.getBoolean(KEY_FLOATING_NAVIGATION_BAR, true))
+    private val _floatingNavigationBar = MutableStateFlow(prefs.getBoolean(KEY_FLOATING_NAVIGATION_BAR, false))
     val floatingNavigationBar: StateFlow<Boolean> = _floatingNavigationBar.asStateFlow()
     
     private val _useDynamicColors = MutableStateFlow(prefs.getBoolean(KEY_USE_DYNAMIC_COLORS, true))
@@ -1142,10 +1142,10 @@ class AppSettings private constructor(context: Context) {
     val showScrollToTop: StateFlow<Boolean> = _showScrollToTop.asStateFlow()
     
     // App Mode Settings (Local vs Streaming)
-    private val _appMode = MutableStateFlow(prefs.getString(KEY_APP_MODE, "LOCAL") ?: "LOCAL")
+    private val _appMode = MutableStateFlow(prefs.getString(KEY_APP_MODE, "STREAMING") ?: "STREAMING")
     val appMode: StateFlow<String> = _appMode.asStateFlow()
     
-    private val _streamingService = MutableStateFlow(prefs.getString(KEY_STREAMING_SERVICE, "SUBSONIC") ?: "SUBSONIC")
+    private val _streamingService = MutableStateFlow(prefs.getString(KEY_STREAMING_SERVICE, "MONOCHROME") ?: "MONOCHROME")
     val streamingService: StateFlow<String> = _streamingService.asStateFlow()
     
     // Default to LOSSLESS so the server streams the original file at full quality.
@@ -1833,7 +1833,7 @@ class AppSettings private constructor(context: Context) {
     val songPlayCounts: StateFlow<Map<String, Int>> = _songPlayCounts.asStateFlow()
 
     // Onboarding
-    private val _onboardingCompleted = MutableStateFlow(prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false))
+    private val _onboardingCompleted = MutableStateFlow(prefs.getBoolean(KEY_ONBOARDING_COMPLETED, true))
     val onboardingCompleted: StateFlow<Boolean> = _onboardingCompleted.asStateFlow()
 
     private val _initialMediaScanCompleted = MutableStateFlow(prefs.getBoolean(KEY_INITIAL_MEDIA_SCAN_COMPLETED, false))
@@ -5478,7 +5478,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
         _useSystemTheme.value = prefs.getBoolean(KEY_USE_SYSTEM_THEME, true)
         _darkMode.value = prefs.getBoolean(KEY_DARK_MODE, true)
         _amoledTheme.value = prefs.getBoolean(KEY_AMOLED_THEME, false)
-        _floatingNavigationBar.value = prefs.getBoolean(KEY_FLOATING_NAVIGATION_BAR, true)
+        _floatingNavigationBar.value = prefs.getBoolean(KEY_FLOATING_NAVIGATION_BAR, false)
         _useDynamicColors.value = prefs.getBoolean(KEY_USE_DYNAMIC_COLORS, false)
         _customColorScheme.value = prefs.getString(KEY_CUSTOM_COLOR_SCHEME, "Default") ?: "Default"
         _customFont.value = prefs.getString(KEY_CUSTOM_FONT, "Geom") ?: "Geom"
@@ -5668,7 +5668,7 @@ private val _autoCheckForUpdates = MutableStateFlow(prefs.getBoolean(KEY_AUTO_CH
         _forcePlayerCompactMode.value = prefs.getBoolean(KEY_FORCE_PLAYER_COMPACT_MODE, false)
         _useExperimentalPlayerUi.value = prefs.getBoolean(KEY_USE_EXPERIMENTAL_PLAYER_UI, false)
         _enableAlbumEditing.value = prefs.getBoolean(KEY_ENABLE_ALBUM_EDITING, false)
-        _onboardingCompleted.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, false)
+        _onboardingCompleted.value = prefs.getBoolean(KEY_ONBOARDING_COMPLETED, true)
         _initialMediaScanCompleted.value = prefs.getBoolean(KEY_INITIAL_MEDIA_SCAN_COMPLETED, false)
         _genreDetectionCompleted.value = prefs.getBoolean(KEY_GENRE_DETECTION_COMPLETED, false)
 

@@ -558,7 +558,7 @@ fun HomeScreen(
     }
 
     CollapsibleHeaderScreen(
-        title = if (isStreamingMode) context.getString(R.string.streaming_integration_title) else context.getString(R.string.home_title),
+        title = if (isStreamingMode) "Listen Now" else context.getString(R.string.home_title),
         headerDisplayMode = headerDisplayMode,
         alwaysCollapsed = false,
         showAppIcon = showAppIcon,
@@ -871,8 +871,11 @@ private fun StreamingHomeBody(
     val isAuthenticated = vm?.isAuthenticated?.collectAsState()?.value ?: false
     val hasOfflineContent = rawDownloadedSongs.isNotEmpty() || rawDownloadedAlbums.isNotEmpty()
     val hasConfiguredSession = serviceSessions.values.any { it.serverUrl.isNotBlank() }
+    val isMonochrome = serviceName.equals("Tunes", ignoreCase = true) ||
+        serviceName.contains("Monochrome", ignoreCase = true) ||
+        appSettings.streamingService.value == StreamingServiceId.MONOCHROME
 
-    if (!hasConfiguredSession && !hasOfflineContent) {
+    if (!isMonochrome && !hasConfiguredSession && !hasOfflineContent) {
         StreamingHomeWelcomeContent(
             modifier = modifier.fillMaxSize(),
             serviceSessions = serviceSessions,
@@ -970,7 +973,7 @@ private fun StreamingHomeBody(
                 .padding(horizontal = horizontalPadding),
             verticalArrangement = Arrangement.spacedBy(sectionSpacing)
         ) {
-        if (!isEffectivelyOffline && errorMessage != null && !syncProgress.isSyncing && !isLoading) {
+        if (!isMonochrome && !isEffectivelyOffline && errorMessage != null && !syncProgress.isSyncing && !isLoading) {
             StreamingServiceStateCard(
                 title = errorMessage,
                 subtitle = context.getString(R.string.streaming_home_widget_empty_hint),
